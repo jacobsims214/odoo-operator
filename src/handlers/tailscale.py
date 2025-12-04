@@ -18,12 +18,12 @@ def get_tailscale_sidecar(
     return {
         "name": "tailscale",
         "image": "tailscale/tailscale:v1.76.1",
-        "image_pull_policy": "IfNotPresent",
+        "imagePullPolicy": "IfNotPresent",
         "env": [
             {
                 "name": "TS_AUTHKEY",
-                "value_from": {
-                    "secret_key_ref": {
+                "valueFrom": {
+                    "secretKeyRef": {
                         "name": auth_secret_name,
                         "key": "TS_AUTHKEY"
                     }
@@ -40,14 +40,14 @@ def get_tailscale_sidecar(
                 "add": ["NET_ADMIN"]
             }
         },
-        "volume_mounts": [
+        "volumeMounts": [
             {
                 "name": "tailscale-state",
-                "mount_path": "/var/lib/tailscale"
+                "mountPath": "/var/lib/tailscale"
             },
             {
                 "name": "tailscale-config",
-                "mount_path": "/config"
+                "mountPath": "/config"
             }
         ]
     }
@@ -58,13 +58,13 @@ def get_tailscale_volumes(name: str) -> list:
     return [
         {
             "name": "tailscale-state",
-            "persistent_volume_claim": {
-                "claim_name": f"{name}-tailscale-state"
+            "persistentVolumeClaim": {
+                "claimName": f"{name}-tailscale-state"
             }
         },
         {
             "name": "tailscale-config",
-            "config_map": {
+            "configMap": {
                 "name": f"{name}-tailscale-config"
             }
         }

@@ -167,7 +167,7 @@ async def create_metabase(
         {
             "name": "metabase",
             "image": "metabase/metabase:v0.50.26",
-            "ports": [{"container_port": 3000, "name": "http"}],
+            "ports": [{"containerPort": 3000, "name": "http"}],
             "env": [
                 # Use embedded H2 database for Metabase app data (stored in /metabase-data)
                 {"name": "MB_DB_FILE", "value": "/metabase-data/metabase.db"},
@@ -180,18 +180,18 @@ async def create_metabase(
                 {"name": "ODOO_DB_USER", "value": "odoo"},
                 {
                     "name": "ODOO_DB_PASSWORD",
-                    "value_from": {
-                        "secret_key_ref": {
+                    "valueFrom": {
+                        "secretKeyRef": {
                             "name": db_secret,
                             "key": "password"
                         }
                     }
                 },
             ],
-            "volume_mounts": [
+            "volumeMounts": [
                 {
                     "name": "data",
-                    "mount_path": "/metabase-data"
+                    "mountPath": "/metabase-data"
                 }
             ],
             "resources": {
@@ -204,21 +204,21 @@ async def create_metabase(
                     "memory": limits.get('memory', '2Gi')
                 }
             },
-            "liveness_probe": {
-                "http_get": {
+            "livenessProbe": {
+                "httpGet": {
                     "path": "/api/health",
                     "port": 3000
                 },
-                "initial_delay_seconds": 120,
-                "period_seconds": 30
+                "initialDelaySeconds": 120,
+                "periodSeconds": 30
             },
-            "readiness_probe": {
-                "http_get": {
+            "readinessProbe": {
+                "httpGet": {
                     "path": "/api/health",
                     "port": 3000
                 },
-                "initial_delay_seconds": 60,
-                "period_seconds": 10
+                "initialDelaySeconds": 60,
+                "periodSeconds": 10
             }
         }
     ]
@@ -241,8 +241,8 @@ async def create_metabase(
     volumes = [
         {
             "name": "data",
-            "persistent_volume_claim": {
-                "claim_name": f"{resource_name}-data"
+            "persistentVolumeClaim": {
+                "claimName": f"{resource_name}-data"
             }
         }
     ]
@@ -250,40 +250,42 @@ async def create_metabase(
     if tailscale:
         volumes.extend(get_tailscale_volumes(f"{name}-metabase"))
 
-    # Create Deployment
-    deployment = client.V1Deployment(
-        metadata=client.V1ObjectMeta(
-            name=resource_name,
-            namespace=namespace,
-            labels={
+    # Create Deployment (using raw dict for proper camelCase serialization)
+    deployment = {
+        "apiVersion": "apps/v1",
+        "kind": "Deployment",
+        "metadata": {
+            "name": resource_name,
+            "namespace": namespace,
+            "labels": {
                 "app.kubernetes.io/managed-by": "odoo.simstech.cloud-operator",
                 "odoo.simstech.cloud/cluster": name,
                 "odoo.simstech.cloud/component": "metabase"
             }
-        ),
-        spec=client.V1DeploymentSpec(
-            replicas=1,
-            selector=client.V1LabelSelector(
-                match_labels={
+        },
+        "spec": {
+            "replicas": 1,
+            "selector": {
+                "matchLabels": {
                     "odoo.simstech.cloud/cluster": name,
                     "odoo.simstech.cloud/component": "metabase"
                 }
-            ),
-            template=client.V1PodTemplateSpec(
-                metadata=client.V1ObjectMeta(
-                    labels={
+            },
+            "template": {
+                "metadata": {
+                    "labels": {
                         "odoo.simstech.cloud/cluster": name,
                         "odoo.simstech.cloud/component": "metabase"
                     }
-                ),
-                spec=client.V1PodSpec(
-                    service_account_name=resource_name,
-                    containers=[client.V1Container(**c) for c in containers],
-                    volumes=[client.V1Volume(**v) for v in volumes]
-                )
-            )
-        )
-    )
+                },
+                "spec": {
+                    "serviceAccountName": resource_name,
+                    "containers": containers,
+                    "volumes": volumes
+                }
+            }
+        }
+    }
 
     try:
         apps_api.create_namespaced_deployment(namespace=namespace, body=deployment)

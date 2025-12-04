@@ -351,14 +351,14 @@ list_db = False
             "name": "clone-addons",
             "image": "alpine/git:latest",
             "command": ["/bin/sh", "/scripts/clone-addons.sh"],
-            "volume_mounts": [
+            "volumeMounts": [
                 {
                     "name": "addons",
-                    "mount_path": "/mnt/addons"
+                    "mountPath": "/mnt/addons"
                 },
                 {
                     "name": "config",
-                    "mount_path": "/scripts"
+                    "mountPath": "/scripts"
                 }
             ]
         })
@@ -370,37 +370,37 @@ list_db = False
                 deploy_keys.add(addon['deployKeySecret'])
 
         for key_secret in deploy_keys:
-            init_containers[0]["volume_mounts"].append({
+            init_containers[0]["volumeMounts"].append({
                 "name": f"deploy-key-{key_secret}",
-                "mount_path": f"/keys/{key_secret}",
-                "read_only": True
+                "mountPath": f"/keys/{key_secret}",
+                "readOnly": True
             })
 
     # Build main containers
     odoo_volume_mounts = [
         {
             "name": "filestore",
-            "mount_path": "/var/lib/odoo"
+            "mountPath": "/var/lib/odoo"
         },
         {
             "name": "config",
-            "mount_path": "/etc/odoo",
-            "sub_path": "odoo.conf"
+            "mountPath": "/etc/odoo",
+            "subPath": "odoo.conf"
         }
     ]
 
     if addons:
         odoo_volume_mounts.append({
             "name": "addons",
-            "mount_path": "/mnt/addons"
+            "mountPath": "/mnt/addons"
         })
 
     # Build environment variables
     odoo_env = [
         {
             "name": "PGPASSWORD",
-            "value_from": {
-                "secret_key_ref": {
+            "valueFrom": {
+                "secretKeyRef": {
                     "name": db_secret,
                     "key": "password"
                 }
@@ -408,8 +408,8 @@ list_db = False
         },
         {
             "name": "ODOO_ADMIN_PASSWD",
-            "value_from": {
-                "secret_key_ref": {
+            "valueFrom": {
+                "secretKeyRef": {
                     "name": f"{resource_name}-admin",
                     "key": "admin-password"
                 }
@@ -428,10 +428,10 @@ list_db = False
         {
             "name": "odoo",
             "image": odoo_image,
-            "image_pull_policy": "Always",  # Always pull to get latest tag updates
-            "ports": [{"container_port": 8069, "name": "http"}],
+            "imagePullPolicy": "Always",  # Always pull to get latest tag updates
+            "ports": [{"containerPort": 8069, "name": "http"}],
             "env": odoo_env,
-            "volume_mounts": odoo_volume_mounts,
+            "volumeMounts": odoo_volume_mounts,
             "resources": {
                 "requests": {
                     "cpu": requests.get('cpu', '500m'),
@@ -442,21 +442,21 @@ list_db = False
                     "memory": limits.get('memory', '4Gi')
                 }
             },
-            "liveness_probe": {
-                "http_get": {
+            "livenessProbe": {
+                "httpGet": {
                     "path": "/web/health",
                     "port": 8069
                 },
-                "initial_delay_seconds": 60,
-                "period_seconds": 30
+                "initialDelaySeconds": 60,
+                "periodSeconds": 30
             },
-            "readiness_probe": {
-                "http_get": {
+            "readinessProbe": {
+                "httpGet": {
                     "path": "/web/health",
                     "port": 8069
                 },
-                "initial_delay_seconds": 30,
-                "period_seconds": 10
+                "initialDelaySeconds": 30,
+                "periodSeconds": 10
             }
         }
     ]
@@ -479,15 +479,15 @@ list_db = False
     volumes = [
         {
             "name": "filestore",
-            "persistent_volume_claim": {
-                "claim_name": f"{resource_name}-filestore"
+            "persistentVolumeClaim": {
+                "claimName": f"{resource_name}-filestore"
             }
         },
         {
             "name": "config",
-            "config_map": {
+            "configMap": {
                 "name": f"{resource_name}-config",
-                "default_mode": 0o755
+                "defaultMode": 0o755
             }
         }
     ]
@@ -495,8 +495,8 @@ list_db = False
     if addons:
         volumes.append({
             "name": "addons",
-            "persistent_volume_claim": {
-                "claim_name": f"{resource_name}-addons"
+            "persistentVolumeClaim": {
+                "claimName": f"{resource_name}-addons"
             }
         })
 
@@ -511,7 +511,7 @@ list_db = False
                 "name": f"deploy-key-{key_secret}",
                 "secret": {
                     "secretName": key_secret,
-                    "default_mode": 0o400
+                    "defaultMode": 0o400
                 }
             })
 
@@ -528,55 +528,58 @@ list_db = False
         tailscale=tailscale
     )
 
-    # Create Deployment
+    # Build pod spec
     pod_spec = {
-        "service_account_name": resource_name,
-        "containers": [client.V1Container(**c) for c in containers],
-        "volumes": [client.V1Volume(**v) for v in volumes]
+        "serviceAccountName": resource_name,
+        "containers": containers,
+        "volumes": volumes
     }
 
     if init_containers:
-        pod_spec["initContainers"] = [client.V1Container(**ic) for ic in init_containers]
+        pod_spec["initContainers"] = init_containers
 
-    deployment = client.V1Deployment(
-        metadata=client.V1ObjectMeta(
-            name=resource_name,
-            namespace=namespace,
-            labels={
+    # Create Deployment (using raw dict for proper camelCase serialization)
+    deployment = {
+        "apiVersion": "apps/v1",
+        "kind": "Deployment",
+        "metadata": {
+            "name": resource_name,
+            "namespace": namespace,
+            "labels": {
                 "app.kubernetes.io/managed-by": "odoo.simstech.cloud-operator",
                 "odoo.simstech.cloud/cluster": name,
                 "odoo.simstech.cloud/component": "odoo"
             }
-        ),
-        spec=client.V1DeploymentSpec(
-            replicas=replicas,
-            selector=client.V1LabelSelector(
-                match_labels={
+        },
+        "spec": {
+            "replicas": replicas,
+            "selector": {
+                "matchLabels": {
                     "odoo.simstech.cloud/cluster": name,
                     "odoo.simstech.cloud/component": "odoo"
                 }
-            ),
-            strategy=client.V1DeploymentStrategy(
-                type="RollingUpdate",
-                rolling_update=client.V1RollingUpdateDeployment(
-                    max_unavailable=0,
-                    max_surge=1
-                )
-            ),
-            template=client.V1PodTemplateSpec(
-                metadata=client.V1ObjectMeta(
-                    labels={
+            },
+            "strategy": {
+                "type": "RollingUpdate",
+                "rollingUpdate": {
+                    "maxUnavailable": 0,
+                    "maxSurge": 1
+                }
+            },
+            "template": {
+                "metadata": {
+                    "labels": {
                         "odoo.simstech.cloud/cluster": name,
                         "odoo.simstech.cloud/component": "odoo"
                     },
-                    annotations={
+                    "annotations": {
                         "odoo.simstech.cloud/config-hash": config_hash
                     }
-                ),
-                spec=client.V1PodSpec(**pod_spec)
-            )
-        )
-    )
+                },
+                "spec": pod_spec
+            }
+        }
+    }
 
     try:
         apps_api.create_namespaced_deployment(namespace=namespace, body=deployment)
