@@ -419,7 +419,21 @@ list_db = False
         })
 
     # Build environment variables
+    # Odoo Docker image expects HOST, USER, PASSWORD env vars
     odoo_env = [
+        # Database connection (Odoo Docker image standard env vars)
+        {"name": "HOST", "value": db_host},
+        {"name": "USER", "value": "odoo"},
+        {
+            "name": "PASSWORD",
+            "valueFrom": {
+                "secretKeyRef": {
+                    "name": db_secret,
+                    "key": "password"
+                }
+            }
+        },
+        # Also set PGPASSWORD for any direct psql usage
         {
             "name": "PGPASSWORD",
             "valueFrom": {
@@ -429,6 +443,7 @@ list_db = False
                 }
             }
         },
+        # Admin master password
         {
             "name": "ODOO_ADMIN_PASSWD",
             "valueFrom": {
