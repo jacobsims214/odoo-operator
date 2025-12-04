@@ -76,8 +76,6 @@ async def create_database(
                 "retentionPolicy": backup.get('retentionPolicy', '30d')
             }
             
-            # Add scheduled backup
-            schedule = backup.get('schedule', '0 2 * * *')
             # Note: ScheduledBackup is a separate CR, we'll create it below
     
     cluster = {

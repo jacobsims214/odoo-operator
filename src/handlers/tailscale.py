@@ -3,7 +3,6 @@ Tailscale helper - Generates sidecar containers and related resources.
 """
 
 from kubernetes import client
-from typing import Optional
 
 
 def get_tailscale_sidecar(

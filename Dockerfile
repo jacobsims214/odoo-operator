@@ -9,10 +9,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy source code
 COPY src/ ./src/
 
-# Run as non-root
-RUN useradd -m -u 1000 operator
-USER operator
+# Create non-root user (use adduser for better compatibility)
+RUN adduser --disabled-password --gecos "" --uid 1000 appuser
+USER appuser
 
 # Start the operator
 CMD ["kopf", "run", "--standalone", "--liveness=http://0.0.0.0:8080/healthz", "src/main.py"]
-

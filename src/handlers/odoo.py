@@ -50,15 +50,15 @@ def build_git_clone_script(addons: List[dict]) -> str:
         
         # Clone or update
         script_lines.append(f"if [ -d '{target_dir}/.git' ]; then")
-        script_lines.append(f"  echo 'Updating existing repo...'")
+        script_lines.append("  echo 'Updating existing repo...'")
         script_lines.append(f"  cd {target_dir}")
-        script_lines.append(f"  git fetch origin")
+        script_lines.append("  git fetch origin")
         script_lines.append(f"  git checkout {branch}")
         script_lines.append(f"  git pull origin {branch}")
-        script_lines.append(f"else")
-        script_lines.append(f"  echo 'Fresh clone...'")
+        script_lines.append("else")
+        script_lines.append("  echo 'Fresh clone...'")
         script_lines.append(f"  git clone --depth 1 --branch {branch} {repo} {target_dir}")
-        script_lines.append(f"fi")
+        script_lines.append("fi")
         
         # If path specified, we'll symlink just that subdir
         if path:

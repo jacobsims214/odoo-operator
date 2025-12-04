@@ -14,7 +14,6 @@ import kopf
 import logging
 from datetime import datetime, timezone
 
-from handlers.namespace import create_namespace, delete_namespace
 from handlers.database import create_database, delete_database, check_database_ready
 from handlers.odoo import create_odoo, delete_odoo
 from handlers.valkey import create_valkey, delete_valkey

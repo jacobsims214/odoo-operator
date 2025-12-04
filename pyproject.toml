@@ -1,0 +1,20 @@
+[project]
+name = "simstech-odoo-operator"
+version = "0.1.0"
+description = "Kubernetes operator for managing multi-tenant Odoo deployments"
+requires-python = ">=3.12"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "W"]
+ignore = [
+    "E501",  # Line too long (handled by formatter)
+]
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
+

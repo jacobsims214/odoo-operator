@@ -23,7 +23,6 @@ def get_cluster_labels(name: str, component: Optional[str] = None) -> dict:
 
 async def get_cluster_status(namespace: str, name: str) -> dict:
     """Get aggregated status of all cluster components."""
-    core_api = client.CoreV1Api()
     apps_api = client.AppsV1Api()
     custom_api = client.CustomObjectsApi()
     
