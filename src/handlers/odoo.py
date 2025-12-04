@@ -351,14 +351,14 @@ list_db = False
             "name": "clone-addons",
             "image": "alpine/git:latest",
             "command": ["/bin/sh", "/scripts/clone-addons.sh"],
-            "volumeMounts": [
+            "volume_mounts": [
                 {
                     "name": "addons",
-                    "mountPath": "/mnt/addons"
+                    "mount_path": "/mnt/addons"
                 },
                 {
                     "name": "config",
-                    "mountPath": "/scripts"
+                    "mount_path": "/scripts"
                 }
             ]
         })
@@ -370,37 +370,37 @@ list_db = False
                 deploy_keys.add(addon['deployKeySecret'])
 
         for key_secret in deploy_keys:
-            init_containers[0]["volumeMounts"].append({
+            init_containers[0]["volume_mounts"].append({
                 "name": f"deploy-key-{key_secret}",
-                "mountPath": f"/keys/{key_secret}",
-                "readOnly": True
+                "mount_path": f"/keys/{key_secret}",
+                "read_only": True
             })
 
     # Build main containers
     odoo_volume_mounts = [
         {
             "name": "filestore",
-            "mountPath": "/var/lib/odoo"
+            "mount_path": "/var/lib/odoo"
         },
         {
             "name": "config",
-            "mountPath": "/etc/odoo",
-            "subPath": "odoo.conf"
+            "mount_path": "/etc/odoo",
+            "sub_path": "odoo.conf"
         }
     ]
 
     if addons:
         odoo_volume_mounts.append({
             "name": "addons",
-            "mountPath": "/mnt/addons"
+            "mount_path": "/mnt/addons"
         })
 
     # Build environment variables
     odoo_env = [
         {
             "name": "PGPASSWORD",
-            "valueFrom": {
-                "secretKeyRef": {
+            "value_from": {
+                "secret_key_ref": {
                     "name": db_secret,
                     "key": "password"
                 }
@@ -408,8 +408,8 @@ list_db = False
         },
         {
             "name": "ODOO_ADMIN_PASSWD",
-            "valueFrom": {
-                "secretKeyRef": {
+            "value_from": {
+                "secret_key_ref": {
                     "name": f"{resource_name}-admin",
                     "key": "admin-password"
                 }
@@ -428,10 +428,10 @@ list_db = False
         {
             "name": "odoo",
             "image": odoo_image,
-            "imagePullPolicy": "Always",  # Always pull to get latest tag updates
-            "ports": [{"containerPort": 8069, "name": "http"}],
+            "image_pull_policy": "Always",  # Always pull to get latest tag updates
+            "ports": [{"container_port": 8069, "name": "http"}],
             "env": odoo_env,
-            "volumeMounts": odoo_volume_mounts,
+            "volume_mounts": odoo_volume_mounts,
             "resources": {
                 "requests": {
                     "cpu": requests.get('cpu', '500m'),
@@ -442,21 +442,21 @@ list_db = False
                     "memory": limits.get('memory', '4Gi')
                 }
             },
-            "livenessProbe": {
-                "httpGet": {
+            "liveness_probe": {
+                "http_get": {
                     "path": "/web/health",
                     "port": 8069
                 },
-                "initialDelaySeconds": 60,
-                "periodSeconds": 30
+                "initial_delay_seconds": 60,
+                "period_seconds": 30
             },
-            "readinessProbe": {
-                "httpGet": {
+            "readiness_probe": {
+                "http_get": {
                     "path": "/web/health",
                     "port": 8069
                 },
-                "initialDelaySeconds": 30,
-                "periodSeconds": 10
+                "initial_delay_seconds": 30,
+                "period_seconds": 10
             }
         }
     ]
@@ -479,15 +479,15 @@ list_db = False
     volumes = [
         {
             "name": "filestore",
-            "persistentVolumeClaim": {
-                "claimName": f"{resource_name}-filestore"
+            "persistent_volume_claim": {
+                "claim_name": f"{resource_name}-filestore"
             }
         },
         {
             "name": "config",
-            "configMap": {
+            "config_map": {
                 "name": f"{resource_name}-config",
-                "defaultMode": 0o755
+                "default_mode": 0o755
             }
         }
     ]
@@ -495,8 +495,8 @@ list_db = False
     if addons:
         volumes.append({
             "name": "addons",
-            "persistentVolumeClaim": {
-                "claimName": f"{resource_name}-addons"
+            "persistent_volume_claim": {
+                "claim_name": f"{resource_name}-addons"
             }
         })
 
@@ -511,7 +511,7 @@ list_db = False
                 "name": f"deploy-key-{key_secret}",
                 "secret": {
                     "secretName": key_secret,
-                    "defaultMode": 0o400
+                    "default_mode": 0o400
                 }
             })
 
@@ -530,7 +530,7 @@ list_db = False
 
     # Create Deployment
     pod_spec = {
-        "serviceAccountName": resource_name,
+        "service_account_name": resource_name,
         "containers": [client.V1Container(**c) for c in containers],
         "volumes": [client.V1Volume(**v) for v in volumes]
     }

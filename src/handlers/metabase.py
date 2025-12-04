@@ -167,7 +167,7 @@ async def create_metabase(
         {
             "name": "metabase",
             "image": "metabase/metabase:v0.50.26",
-            "ports": [{"containerPort": 3000, "name": "http"}],
+            "ports": [{"container_port": 3000, "name": "http"}],
             "env": [
                 # Use embedded H2 database for Metabase app data (stored in /metabase-data)
                 {"name": "MB_DB_FILE", "value": "/metabase-data/metabase.db"},
@@ -180,18 +180,18 @@ async def create_metabase(
                 {"name": "ODOO_DB_USER", "value": "odoo"},
                 {
                     "name": "ODOO_DB_PASSWORD",
-                    "valueFrom": {
-                        "secretKeyRef": {
+                    "value_from": {
+                        "secret_key_ref": {
                             "name": db_secret,
                             "key": "password"
                         }
                     }
                 },
             ],
-            "volumeMounts": [
+            "volume_mounts": [
                 {
                     "name": "data",
-                    "mountPath": "/metabase-data"
+                    "mount_path": "/metabase-data"
                 }
             ],
             "resources": {
@@ -204,21 +204,21 @@ async def create_metabase(
                     "memory": limits.get('memory', '2Gi')
                 }
             },
-            "livenessProbe": {
-                "httpGet": {
+            "liveness_probe": {
+                "http_get": {
                     "path": "/api/health",
                     "port": 3000
                 },
-                "initialDelaySeconds": 120,
-                "periodSeconds": 30
+                "initial_delay_seconds": 120,
+                "period_seconds": 30
             },
-            "readinessProbe": {
-                "httpGet": {
+            "readiness_probe": {
+                "http_get": {
                     "path": "/api/health",
                     "port": 3000
                 },
-                "initialDelaySeconds": 60,
-                "periodSeconds": 10
+                "initial_delay_seconds": 60,
+                "period_seconds": 10
             }
         }
     ]
@@ -241,8 +241,8 @@ async def create_metabase(
     volumes = [
         {
             "name": "data",
-            "persistentVolumeClaim": {
-                "claimName": f"{resource_name}-data"
+            "persistent_volume_claim": {
+                "claim_name": f"{resource_name}-data"
             }
         }
     ]
