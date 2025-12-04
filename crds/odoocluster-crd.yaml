@@ -1,0 +1,311 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: odooclusters.simstech-odoo
+spec:
+  group: simstech-odoo
+  names:
+    kind: OdooCluster
+    listKind: OdooClusterList
+    plural: odooclusters
+    singular: odoocluster
+    shortNames:
+      - odoo
+      - oc
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          required:
+            - spec
+          properties:
+            spec:
+              type: object
+              required:
+                - odoo
+                - database
+              properties:
+                # Odoo Configuration
+                odoo:
+                  type: object
+                  required:
+                    - version
+                  properties:
+                    version:
+                      type: string
+                      description: "Odoo version (e.g., 17.0, 16.0)"
+                    image:
+                      type: string
+                      description: "Custom Odoo image (defaults to odoo:<version>)"
+                    replicas:
+                      type: integer
+                      default: 1
+                      minimum: 1
+                    storage:
+                      type: string
+                      default: "10Gi"
+                      description: "Storage size for Odoo filestore"
+                    addons:
+                      type: array
+                      description: "Git repositories containing Odoo addons"
+                      items:
+                        type: object
+                        required:
+                          - name
+                          - repo
+                        properties:
+                          name:
+                            type: string
+                            description: "Name for this addon set (used as directory name)"
+                          repo:
+                            type: string
+                            description: "Git repository URL (SSH or HTTPS)"
+                          branch:
+                            type: string
+                            default: "main"
+                            description: "Branch or tag to checkout"
+                          path:
+                            type: string
+                            description: "Subdirectory within repo containing addons (optional)"
+                          deployKeySecret:
+                            type: string
+                            description: "Secret name containing SSH deploy key (for private repos)"
+                    resources:
+                      type: object
+                      properties:
+                        requests:
+                          type: object
+                          properties:
+                            cpu:
+                              type: string
+                              default: "500m"
+                            memory:
+                              type: string
+                              default: "1Gi"
+                        limits:
+                          type: object
+                          properties:
+                            cpu:
+                              type: string
+                              default: "2"
+                            memory:
+                              type: string
+                              default: "4Gi"
+                
+                # PostgreSQL Configuration (CloudNative-PG)
+                database:
+                  type: object
+                  properties:
+                    storage:
+                      type: string
+                      default: "20Gi"
+                    instances:
+                      type: integer
+                      default: 1
+                      minimum: 1
+                      maximum: 5
+                    resources:
+                      type: object
+                      properties:
+                        requests:
+                          type: object
+                          properties:
+                            cpu:
+                              type: string
+                              default: "250m"
+                            memory:
+                              type: string
+                              default: "512Mi"
+                        limits:
+                          type: object
+                          properties:
+                            cpu:
+                              type: string
+                              default: "1"
+                            memory:
+                              type: string
+                              default: "2Gi"
+                    backup:
+                      type: object
+                      properties:
+                        enabled:
+                          type: boolean
+                          default: false
+                        schedule:
+                          type: string
+                          default: "0 2 * * *"
+                          description: "Cron schedule for backups"
+                        retentionPolicy:
+                          type: string
+                          default: "30d"
+                        s3:
+                          type: object
+                          properties:
+                            endpoint:
+                              type: string
+                              description: "S3/Minio endpoint URL"
+                            bucket:
+                              type: string
+                              description: "S3 bucket name"
+                            secretName:
+                              type: string
+                              description: "Secret containing ACCESS_KEY_ID and SECRET_ACCESS_KEY"
+                
+                # Optional Add-ons
+                addons:
+                  type: object
+                  properties:
+                    valkey:
+                      type: object
+                      properties:
+                        enabled:
+                          type: boolean
+                          default: false
+                        storage:
+                          type: string
+                          default: "1Gi"
+                        resources:
+                          type: object
+                          properties:
+                            requests:
+                              type: object
+                              properties:
+                                cpu:
+                                  type: string
+                                  default: "100m"
+                                memory:
+                                  type: string
+                                  default: "128Mi"
+                            limits:
+                              type: object
+                              properties:
+                                cpu:
+                                  type: string
+                                  default: "500m"
+                                memory:
+                                  type: string
+                                  default: "512Mi"
+                    bi:
+                      type: object
+                      properties:
+                        enabled:
+                          type: boolean
+                          default: false
+                        tool:
+                          type: string
+                          enum: ["metabase"]
+                          default: "metabase"
+                        storage:
+                          type: string
+                          default: "5Gi"
+                        resources:
+                          type: object
+                          properties:
+                            requests:
+                              type: object
+                              properties:
+                                cpu:
+                                  type: string
+                                  default: "500m"
+                                memory:
+                                  type: string
+                                  default: "1Gi"
+                            limits:
+                              type: object
+                              properties:
+                                cpu:
+                                  type: string
+                                  default: "2"
+                                memory:
+                                  type: string
+                                  default: "2Gi"
+                
+                # Networking Configuration
+                networking:
+                  type: object
+                  properties:
+                    tailscale:
+                      type: object
+                      properties:
+                        authSecretName:
+                          type: string
+                          default: "tailscale-auth"
+                          description: "Secret containing TS_AUTHKEY"
+                        odoo:
+                          type: object
+                          properties:
+                            enabled:
+                              type: boolean
+                              default: false
+                            hostname:
+                              type: string
+                              default: "odoo"
+                            funnel:
+                              type: boolean
+                              default: true
+                            tags:
+                              type: string
+                              default: "tag:odoo-web"
+                        bi:
+                          type: object
+                          properties:
+                            enabled:
+                              type: boolean
+                              default: false
+                            hostname:
+                              type: string
+                              default: "bi"
+                            funnel:
+                              type: boolean
+                              default: false
+                            tags:
+                              type: string
+                              default: "tag:odoo-bi"
+            
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+                  enum: ["Pending", "Creating", "Ready", "Error"]
+                message:
+                  type: string
+                namespace:
+                  type: string
+                endpoints:
+                  type: object
+                  properties:
+                    odoo:
+                      type: string
+                    bi:
+                      type: string
+                database:
+                  type: object
+                  properties:
+                    host:
+                      type: string
+                    ready:
+                      type: boolean
+                lastUpdated:
+                  type: string
+                  format: date-time
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Phase
+          type: string
+          jsonPath: .status.phase
+        - name: Namespace
+          type: string
+          jsonPath: .status.namespace
+        - name: Odoo Version
+          type: string
+          jsonPath: .spec.odoo.version
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+

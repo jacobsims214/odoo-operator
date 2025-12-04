@@ -1,0 +1,61 @@
+# OdooCluster with Git Addons
+# Demonstrates cloning private and public addon repositories
+
+apiVersion: simstech-odoo/v1alpha1
+kind: OdooCluster
+metadata:
+  name: acme-with-addons
+spec:
+  odoo:
+    version: "17.0"
+    replicas: 1
+    storage: "10Gi"
+    
+    # Git repositories containing Odoo addons
+    addons:
+      # Public OCA repository (no deploy key needed)
+      - name: "oca-web"
+        repo: "https://github.com/OCA/web.git"
+        branch: "17.0"
+      
+      # Public OCA repository with specific subpath
+      - name: "oca-partner-contact"
+        repo: "https://github.com/OCA/partner-contact.git"
+        branch: "17.0"
+      
+      # Private company repository (requires deploy key)
+      - name: "custom-addons"
+        repo: "git@github.com:acme-corp/odoo-addons.git"
+        branch: "main"
+        deployKeySecret: "github-deploy-key"
+      
+      # Another private repo with subpath
+      - name: "internal-modules"
+        repo: "git@gitlab.com:acme/internal-odoo.git"
+        branch: "17.0"
+        path: "addons"  # Only use the addons/ subdirectory
+        deployKeySecret: "gitlab-deploy-key"
+  
+  database:
+    storage: "20Gi"
+  
+  networking:
+    tailscale:
+      authSecretName: "tailscale-auth"
+      odoo:
+        enabled: true
+        hostname: "acme-odoo"
+        funnel: true
+
+---
+# Deploy key secrets must be created before the OdooCluster
+# 
+# Generate a deploy key:
+#   ssh-keygen -t ed25519 -C "odoo-deploy-key" -f deploy-key -N ""
+#
+# Add the public key (deploy-key.pub) to your Git repo's deploy keys
+#
+# Create the secret:
+#   kubectl -n odoo-acme-with-addons create secret generic github-deploy-key \
+#     --from-file=ssh-privatekey=deploy-key
+

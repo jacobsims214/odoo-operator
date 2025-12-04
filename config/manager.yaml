@@ -1,0 +1,56 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: simstech-odoo-operator
+  labels:
+    app.kubernetes.io/name: simstech-odoo-operator
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: simstech-odoo-operator
+  namespace: simstech-odoo-operator
+  labels:
+    app.kubernetes.io/name: simstech-odoo-operator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: simstech-odoo-operator
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: simstech-odoo-operator
+    spec:
+      serviceAccountName: simstech-odoo-operator
+      containers:
+        - name: operator
+          image: ghcr.io/jacobsims214/odoo-operator:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+              name: health
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+

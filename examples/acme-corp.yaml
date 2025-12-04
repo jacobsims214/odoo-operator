@@ -1,0 +1,68 @@
+# Example OdooCluster for ACME Corp
+# This creates a full Odoo environment with:
+# - PostgreSQL database (CloudNative-PG)
+# - Odoo 17.0 deployment
+# - Valkey cache
+# - Metabase BI
+# - Tailscale access for both Odoo and BI
+
+apiVersion: simstech-odoo/v1alpha1
+kind: OdooCluster
+metadata:
+  name: acme-corp
+spec:
+  odoo:
+    version: "17.0"
+    replicas: 1
+    storage: "10Gi"
+    resources:
+      requests:
+        cpu: "500m"
+        memory: "1Gi"
+      limits:
+        cpu: "2"
+        memory: "4Gi"
+  
+  database:
+    storage: "20Gi"
+    instances: 1
+    resources:
+      requests:
+        cpu: "250m"
+        memory: "512Mi"
+      limits:
+        cpu: "1"
+        memory: "2Gi"
+    backup:
+      enabled: true
+      schedule: "0 2 * * *"
+      retentionPolicy: "30d"
+      s3:
+        endpoint: "https://minio.example.com"
+        bucket: "odoo-backups"
+        secretName: "backup-s3-creds"
+  
+  addons:
+    valkey:
+      enabled: true
+      storage: "1Gi"
+    
+    bi:
+      enabled: true
+      tool: "metabase"
+      storage: "5Gi"
+  
+  networking:
+    tailscale:
+      authSecretName: "tailscale-auth"
+      odoo:
+        enabled: true
+        hostname: "acme-odoo"
+        funnel: true
+        tags: "tag:odoo-web"
+      bi:
+        enabled: true
+        hostname: "acme-bi"
+        funnel: false
+        tags: "tag:odoo-bi"
+

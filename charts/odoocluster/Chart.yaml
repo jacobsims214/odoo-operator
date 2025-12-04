@@ -1,0 +1,13 @@
+apiVersion: v2
+name: odoocluster
+description: Deploy an Odoo environment using the Simstech Odoo Operator
+type: application
+version: 0.1.0
+appVersion: "17.0"
+keywords:
+  - odoo
+  - erp
+  - business
+maintainers:
+  - name: Simstech
+

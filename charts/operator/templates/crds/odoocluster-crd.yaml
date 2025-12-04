@@ -1,0 +1,241 @@
+{{- if .Values.installCRDs | default true }}
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: odooclusters.simstech-odoo
+  labels:
+    {{- include "operator.labels" . | nindent 4 }}
+spec:
+  group: simstech-odoo
+  names:
+    kind: OdooCluster
+    listKind: OdooClusterList
+    plural: odooclusters
+    singular: odoocluster
+    shortNames:
+      - odoo
+      - oc
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          required:
+            - spec
+          properties:
+            spec:
+              type: object
+              required:
+                - odoo
+                - database
+              properties:
+                odoo:
+                  type: object
+                  required:
+                    - version
+                  properties:
+                    version:
+                      type: string
+                      description: "Odoo version (e.g., 17, 18)"
+                    image:
+                      type: string
+                      description: "Custom Odoo image"
+                    replicas:
+                      type: integer
+                      default: 1
+                      minimum: 1
+                    storage:
+                      type: string
+                      default: "10Gi"
+                    addons:
+                      type: array
+                      items:
+                        type: object
+                        required:
+                          - name
+                          - repo
+                        properties:
+                          name:
+                            type: string
+                          repo:
+                            type: string
+                          branch:
+                            type: string
+                            default: "main"
+                          path:
+                            type: string
+                          deployKeySecret:
+                            type: string
+                    resources:
+                      type: object
+                      properties:
+                        requests:
+                          type: object
+                          properties:
+                            cpu:
+                              type: string
+                              default: "500m"
+                            memory:
+                              type: string
+                              default: "1Gi"
+                        limits:
+                          type: object
+                          properties:
+                            cpu:
+                              type: string
+                              default: "2"
+                            memory:
+                              type: string
+                              default: "4Gi"
+                database:
+                  type: object
+                  properties:
+                    storage:
+                      type: string
+                      default: "20Gi"
+                    instances:
+                      type: integer
+                      default: 1
+                    resources:
+                      type: object
+                      properties:
+                        requests:
+                          type: object
+                          properties:
+                            cpu:
+                              type: string
+                            memory:
+                              type: string
+                        limits:
+                          type: object
+                          properties:
+                            cpu:
+                              type: string
+                            memory:
+                              type: string
+                    backup:
+                      type: object
+                      properties:
+                        enabled:
+                          type: boolean
+                          default: false
+                        schedule:
+                          type: string
+                          default: "0 2 * * *"
+                        retentionPolicy:
+                          type: string
+                          default: "30d"
+                        s3:
+                          type: object
+                          properties:
+                            endpoint:
+                              type: string
+                            bucket:
+                              type: string
+                            secretName:
+                              type: string
+                addons:
+                  type: object
+                  properties:
+                    valkey:
+                      type: object
+                      properties:
+                        enabled:
+                          type: boolean
+                          default: false
+                        storage:
+                          type: string
+                          default: "1Gi"
+                    bi:
+                      type: object
+                      properties:
+                        enabled:
+                          type: boolean
+                          default: false
+                        tool:
+                          type: string
+                          enum: ["metabase"]
+                          default: "metabase"
+                        storage:
+                          type: string
+                          default: "5Gi"
+                networking:
+                  type: object
+                  properties:
+                    tailscale:
+                      type: object
+                      properties:
+                        authSecretName:
+                          type: string
+                          default: "tailscale-auth"
+                        odoo:
+                          type: object
+                          properties:
+                            enabled:
+                              type: boolean
+                              default: false
+                            hostname:
+                              type: string
+                            funnel:
+                              type: boolean
+                              default: true
+                            tags:
+                              type: string
+                        bi:
+                          type: object
+                          properties:
+                            enabled:
+                              type: boolean
+                              default: false
+                            hostname:
+                              type: string
+                            funnel:
+                              type: boolean
+                              default: false
+                            tags:
+                              type: string
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+                message:
+                  type: string
+                namespace:
+                  type: string
+                endpoints:
+                  type: object
+                  properties:
+                    odoo:
+                      type: string
+                    bi:
+                      type: string
+                database:
+                  type: object
+                  properties:
+                    host:
+                      type: string
+                    ready:
+                      type: boolean
+                lastUpdated:
+                  type: string
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Phase
+          type: string
+          jsonPath: .status.phase
+        - name: Namespace
+          type: string
+          jsonPath: .status.namespace
+        - name: Version
+          type: string
+          jsonPath: .spec.odoo.version
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+{{- end }}
+

@@ -1,0 +1,85 @@
+apiVersion: simstech-odoo/v1alpha1
+kind: OdooCluster
+metadata:
+  name: {{ include "odoocluster.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "odoocluster.labels" . | nindent 4 }}
+spec:
+  odoo:
+    version: {{ .Values.odoo.version | quote }}
+    {{- if .Values.odoo.image }}
+    image: {{ .Values.odoo.image | quote }}
+    {{- end }}
+    replicas: {{ .Values.odoo.replicas }}
+    storage: {{ .Values.odoo.storage | quote }}
+    {{- if .Values.odoo.resources }}
+    resources:
+      {{- toYaml .Values.odoo.resources | nindent 6 }}
+    {{- end }}
+    {{- if .Values.odoo.addons }}
+    addons:
+      {{- toYaml .Values.odoo.addons | nindent 6 }}
+    {{- end }}
+  
+  database:
+    storage: {{ .Values.database.storage | quote }}
+    instances: {{ .Values.database.instances }}
+    {{- if .Values.database.resources }}
+    resources:
+      {{- toYaml .Values.database.resources | nindent 6 }}
+    {{- end }}
+    {{- if .Values.database.backup.enabled }}
+    backup:
+      enabled: true
+      schedule: {{ .Values.database.backup.schedule | quote }}
+      retentionPolicy: {{ .Values.database.backup.retentionPolicy | quote }}
+      s3:
+        endpoint: {{ .Values.database.backup.s3.endpoint | quote }}
+        bucket: {{ .Values.database.backup.s3.bucket | quote }}
+        secretName: {{ .Values.database.backup.s3.secretName | quote }}
+    {{- end }}
+  
+  {{- if or .Values.addons.valkey.enabled .Values.addons.bi.enabled }}
+  addons:
+    {{- if .Values.addons.valkey.enabled }}
+    valkey:
+      enabled: true
+      storage: {{ .Values.addons.valkey.storage | quote }}
+      {{- if .Values.addons.valkey.resources }}
+      resources:
+        {{- toYaml .Values.addons.valkey.resources | nindent 8 }}
+      {{- end }}
+    {{- end }}
+    {{- if .Values.addons.bi.enabled }}
+    bi:
+      enabled: true
+      tool: {{ .Values.addons.bi.tool | quote }}
+      storage: {{ .Values.addons.bi.storage | quote }}
+      {{- if .Values.addons.bi.resources }}
+      resources:
+        {{- toYaml .Values.addons.bi.resources | nindent 8 }}
+      {{- end }}
+    {{- end }}
+  {{- end }}
+  
+  {{- if or .Values.networking.tailscale.odoo.enabled .Values.networking.tailscale.bi.enabled }}
+  networking:
+    tailscale:
+      authSecretName: {{ .Values.networking.tailscale.authSecretName | quote }}
+      {{- if .Values.networking.tailscale.odoo.enabled }}
+      odoo:
+        enabled: true
+        hostname: {{ include "odoocluster.odooHostname" . | quote }}
+        funnel: {{ .Values.networking.tailscale.odoo.funnel }}
+        tags: {{ .Values.networking.tailscale.odoo.tags | quote }}
+      {{- end }}
+      {{- if .Values.networking.tailscale.bi.enabled }}
+      bi:
+        enabled: true
+        hostname: {{ include "odoocluster.biHostname" . | quote }}
+        funnel: {{ .Values.networking.tailscale.bi.funnel }}
+        tags: {{ .Values.networking.tailscale.bi.tags | quote }}
+      {{- end }}
+  {{- end }}
+

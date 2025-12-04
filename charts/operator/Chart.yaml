@@ -1,0 +1,13 @@
+apiVersion: v2
+name: simstech-odoo-operator
+description: Kubernetes operator for managing multi-tenant Odoo deployments
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - odoo
+  - operator
+  - erp
+maintainers:
+  - name: Simstech
+

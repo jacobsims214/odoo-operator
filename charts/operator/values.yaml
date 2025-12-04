@@ -1,0 +1,57 @@
+# Simstech Odoo Operator Helm Values
+
+# Operator image
+image:
+  repository: ghcr.io/jacobsims214/odoo-operator
+  tag: "latest"
+  pullPolicy: Always
+
+# Image pull secrets for private registries
+imagePullSecrets: []
+
+# Number of operator replicas (usually 1)
+replicaCount: 1
+
+# Resource limits
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+# Pod security context
+podSecurityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
+# Container security context
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 1000
+
+# Service account
+serviceAccount:
+  # Create service account
+  create: true
+  # Annotations to add
+  annotations: {}
+  # Name override (defaults to release name)
+  name: ""
+
+# Node selector
+nodeSelector: {}
+
+# Tolerations
+tolerations: []
+
+# Affinity
+affinity: {}
+
+# Health check port
+healthPort: 8080
+

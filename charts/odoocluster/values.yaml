@@ -1,0 +1,154 @@
+# OdooCluster Helm Values
+# This chart creates an OdooCluster CR and required secrets
+
+# Cluster name (defaults to release name)
+name: ""
+
+# =============================================================================
+# Odoo Configuration
+# =============================================================================
+odoo:
+  # Odoo version - use "17" for latest 17.x, "18" for latest 18.x
+  version: "17"
+  
+  # Custom image (optional - defaults to odoo:<version>)
+  image: ""
+  
+  # Number of replicas
+  replicas: 1
+  
+  # Storage for Odoo filestore
+  storage: "10Gi"
+  
+  # Resource limits
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+    limits:
+      cpu: "2"
+      memory: "4Gi"
+  
+  # Git addon repositories
+  # Example:
+  # addons:
+  #   - name: "oca-web"
+  #     repo: "https://github.com/OCA/web.git"
+  #     branch: "17.0"
+  #   - name: "custom"
+  #     repo: "git@github.com:company/addons.git"
+  #     branch: "main"
+  #     deployKeySecret: "github-deploy-key"
+  addons: []
+
+# =============================================================================
+# Database Configuration (CloudNative-PG)
+# =============================================================================
+database:
+  # Storage size
+  storage: "20Gi"
+  
+  # Number of PostgreSQL instances (1 for dev, 2-3 for HA)
+  instances: 1
+  
+  # Resource limits
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "512Mi"
+    limits:
+      cpu: "1"
+      memory: "2Gi"
+  
+  # Backup configuration
+  backup:
+    enabled: false
+    # Cron schedule (default: 2 AM daily)
+    schedule: "0 2 * * *"
+    # Retention policy
+    retentionPolicy: "30d"
+    # S3/Minio configuration
+    s3:
+      endpoint: ""
+      bucket: ""
+      # Secret name containing ACCESS_KEY_ID and SECRET_ACCESS_KEY
+      secretName: "backup-s3-creds"
+
+# =============================================================================
+# Optional Add-ons
+# =============================================================================
+addons:
+  # Valkey (Redis-compatible) for caching/sessions
+  valkey:
+    enabled: false
+    storage: "1Gi"
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "128Mi"
+      limits:
+        cpu: "500m"
+        memory: "512Mi"
+  
+  # Metabase BI tool
+  bi:
+    enabled: false
+    tool: "metabase"
+    storage: "5Gi"
+    resources:
+      requests:
+        cpu: "500m"
+        memory: "1Gi"
+      limits:
+        cpu: "2"
+        memory: "2Gi"
+
+# =============================================================================
+# Networking (Tailscale)
+# =============================================================================
+networking:
+  tailscale:
+    # Secret containing TS_AUTHKEY
+    authSecretName: "tailscale-auth"
+    
+    # Odoo web access
+    odoo:
+      enabled: false
+      hostname: ""  # Defaults to cluster name
+      funnel: true  # Public access via Tailscale Funnel
+      tags: "tag:odoo-web"
+    
+    # BI tool access
+    bi:
+      enabled: false
+      hostname: ""  # Defaults to cluster name + "-bi"
+      funnel: false  # Internal only by default
+      tags: "tag:odoo-bi"
+
+# =============================================================================
+# Secrets (created by this chart)
+# =============================================================================
+secrets:
+  # Tailscale auth key
+  tailscale:
+    # Create the secret (set to false if secret already exists)
+    create: false
+    # Auth key value (get from https://login.tailscale.com/admin/settings/keys)
+    authKey: ""
+  
+  # S3/Minio backup credentials
+  backup:
+    # Create the secret
+    create: false
+    accessKeyId: ""
+    secretAccessKey: ""
+  
+  # Git deploy keys for private addon repos
+  # deployKeys:
+  #   - name: "github-deploy-key"
+  #     privateKey: |
+  #       -----BEGIN OPENSSH PRIVATE KEY-----
+  #       ...
+  #       -----END OPENSSH PRIVATE KEY-----
+  deployKeys: []
+
