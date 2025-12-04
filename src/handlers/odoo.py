@@ -4,6 +4,8 @@ Odoo handler - Creates Odoo deployment and related resources.
 
 import hashlib
 import json
+import secrets
+import string
 from kubernetes import client
 from kubernetes.client.rest import ApiException
 import kopf
@@ -15,6 +17,12 @@ from .tailscale import (
     delete_tailscale_resources,
     get_tailscale_rbac
 )
+
+
+def generate_password(length: int = 32) -> str:
+    """Generate a secure random password."""
+    alphabet = string.ascii_letters + string.digits
+    return ''.join(secrets.choice(alphabet) for _ in range(length))
 
 
 def build_git_clone_script(addons: List[dict]) -> str:
@@ -186,6 +194,33 @@ async def create_odoo(
         if e.status != 409:
             raise
 
+    # Create admin secret (only if it doesn't exist - don't overwrite existing passwords)
+    admin_secret_name = f"{resource_name}-admin"
+    try:
+        core_api.read_namespaced_secret(name=admin_secret_name, namespace=namespace)
+        # Secret exists, don't overwrite
+    except ApiException as e:
+        if e.status == 404:
+            # Create new secret with generated password
+            admin_password = generate_password(32)
+            admin_secret = client.V1Secret(
+                metadata=client.V1ObjectMeta(
+                    name=admin_secret_name,
+                    namespace=namespace,
+                    labels={
+                        "app.kubernetes.io/managed-by": "odoo.simstech.cloud-operator",
+                        "odoo.simstech.cloud/cluster": name,
+                        "odoo.simstech.cloud/component": "odoo"
+                    }
+                ),
+                string_data={
+                    "admin-password": admin_password,
+                }
+            )
+            core_api.create_namespaced_secret(namespace=namespace, body=admin_secret)
+        else:
+            raise
+
     # Create PVC for addons (if any addons defined)
     if addons:
         addons_pvc = client.V1PersistentVolumeClaim(
@@ -215,9 +250,19 @@ async def create_odoo(
     # Build addons path for odoo.conf
     addons_path = build_addons_path(addons) if addons else "/mnt/extra-addons"
 
+    # Build Redis session store config if Valkey is enabled
+    redis_config = ""
+    if valkey_enabled and valkey_host:
+        redis_config = f"""
+; Redis session store (Valkey)
+redis_session_store = True
+redis_host = {valkey_host}
+redis_port = 6379
+"""
+
     # Create ConfigMap for odoo.conf
+    # Note: admin_passwd is set via environment variable for security
     odoo_conf = f"""[options]
-admin_passwd = False
 db_host = {db_host}
 db_port = 5432
 db_user = odoo
@@ -226,6 +271,7 @@ data_dir = /var/lib/odoo
 addons_path = {addons_path}
 proxy_mode = True
 list_db = False
+{redis_config}
 """
 
     configmap_data = {
@@ -349,23 +395,42 @@ list_db = False
             "mountPath": "/mnt/addons"
         })
 
+    # Build environment variables
+    odoo_env = [
+        {
+            "name": "PGPASSWORD",
+            "valueFrom": {
+                "secretKeyRef": {
+                    "name": db_secret,
+                    "key": "password"
+                }
+            }
+        },
+        {
+            "name": "ODOO_ADMIN_PASSWD",
+            "valueFrom": {
+                "secretKeyRef": {
+                    "name": f"{resource_name}-admin",
+                    "key": "admin-password"
+                }
+            }
+        }
+    ]
+
+    # Add Redis env vars if Valkey is enabled
+    if valkey_enabled and valkey_host:
+        odoo_env.extend([
+            {"name": "ODOO_REDIS_HOST", "value": valkey_host},
+            {"name": "ODOO_REDIS_PORT", "value": "6379"},
+        ])
+
     containers = [
         {
             "name": "odoo",
             "image": odoo_image,
             "imagePullPolicy": "Always",  # Always pull to get latest tag updates
             "ports": [{"containerPort": 8069, "name": "http"}],
-            "env": [
-                {
-                    "name": "PGPASSWORD",
-                    "valueFrom": {
-                        "secretKeyRef": {
-                            "name": db_secret,
-                            "key": "password"
-                        }
-                    }
-                }
-            ],
+            "env": odoo_env,
             "volumeMounts": odoo_volume_mounts,
             "resources": {
                 "requests": {

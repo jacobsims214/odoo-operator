@@ -2,6 +2,8 @@
 Metabase handler - Creates Metabase BI deployment connected to Odoo's PostgreSQL.
 """
 
+import secrets
+import string
 from kubernetes import client
 from kubernetes.client.rest import ApiException
 import kopf
@@ -13,6 +15,12 @@ from .tailscale import (
     delete_tailscale_resources,
     get_tailscale_rbac
 )
+
+
+def generate_password(length: int = 32) -> str:
+    """Generate a secure random password."""
+    alphabet = string.ascii_letters + string.digits
+    return ''.join(secrets.choice(alphabet) for _ in range(length))
 
 
 async def create_metabase(
@@ -79,6 +87,42 @@ async def create_metabase(
         if e.status != 409:
             raise
 
+    # Create admin secret (only if it doesn't exist - don't overwrite existing passwords)
+    admin_secret_name = f"{resource_name}-admin"
+    try:
+        core_api.read_namespaced_secret(name=admin_secret_name, namespace=namespace)
+        # Secret exists, don't overwrite
+    except ApiException as e:
+        if e.status == 404:
+            # Create new secret with generated credentials
+            # Note: Metabase requires completing setup wizard, these are suggested creds
+            admin_email = f"admin@{name}.local"
+            admin_password = generate_password(24)
+            admin_secret = client.V1Secret(
+                metadata=client.V1ObjectMeta(
+                    name=admin_secret_name,
+                    namespace=namespace,
+                    labels={
+                        "app.kubernetes.io/managed-by": "odoo.simstech.cloud-operator",
+                        "odoo.simstech.cloud/cluster": name,
+                        "odoo.simstech.cloud/component": "metabase"
+                    },
+                    annotations={
+                        "odoo.simstech.cloud/note": "Use these credentials when completing Metabase setup wizard"
+                    }
+                ),
+                string_data={
+                    "admin-email": admin_email,
+                    "admin-password": admin_password,
+                    "odoo-db-host": f"{name}-db-rw",
+                    "odoo-db-name": "odoo",
+                    "odoo-db-user": "odoo",
+                }
+            )
+            core_api.create_namespaced_secret(namespace=namespace, body=admin_secret)
+        else:
+            raise
+
     # Setup Tailscale if enabled
     if tailscale:
         await create_tailscale_resources(
@@ -117,20 +161,25 @@ async def create_metabase(
                 raise
 
     # Build containers
+    # Note: Using H2 embedded database for Metabase app data (simpler, stored in PVC)
+    # The Odoo PostgreSQL connection is added as a data source during setup
     containers = [
         {
             "name": "metabase",
             "image": "metabase/metabase:v0.50.26",
             "ports": [{"containerPort": 3000, "name": "http"}],
             "env": [
-                # Use the Odoo PostgreSQL for Metabase app database
-                {"name": "MB_DB_TYPE", "value": "postgres"},
-                {"name": "MB_DB_HOST", "value": f"{name}-db-rw"},
-                {"name": "MB_DB_PORT", "value": "5432"},
-                {"name": "MB_DB_DBNAME", "value": "metabase"},
-                {"name": "MB_DB_USER", "value": "odoo"},
+                # Use embedded H2 database for Metabase app data (stored in /metabase-data)
+                {"name": "MB_DB_FILE", "value": "/metabase-data/metabase.db"},
+                # Jetty settings
+                {"name": "JAVA_OPTS", "value": "-Xmx1g"},
+                # Store Odoo DB connection info in env for reference during setup
+                {"name": "ODOO_DB_HOST", "value": f"{name}-db-rw"},
+                {"name": "ODOO_DB_PORT", "value": "5432"},
+                {"name": "ODOO_DB_NAME", "value": "odoo"},
+                {"name": "ODOO_DB_USER", "value": "odoo"},
                 {
-                    "name": "MB_DB_PASS",
+                    "name": "ODOO_DB_PASSWORD",
                     "valueFrom": {
                         "secretKeyRef": {
                             "name": db_secret,
@@ -138,8 +187,6 @@ async def create_metabase(
                         }
                     }
                 },
-                # Jetty settings
-                {"name": "JAVA_OPTS", "value": "-Xmx1g"}
             ],
             "volumeMounts": [
                 {
