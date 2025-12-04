@@ -89,10 +89,10 @@ def get_serve_config(target_port: int, funnel: bool = True) -> dict:
             }
         }
     }
-    
+
     if funnel:
         config["AllowFunnel"] = {"443": True}
-    
+
     return config
 
 
@@ -106,12 +106,12 @@ async def create_tailscale_resources(
     """Create Tailscale ConfigMap and PVC."""
     import json
     api = client.CoreV1Api()
-    
+
     resource_name = f"{name}-{component}"
-    
+
     # Create ConfigMap with serve config
     serve_config = get_serve_config(target_port, funnel)
-    
+
     configmap = client.V1ConfigMap(
         metadata=client.V1ObjectMeta(
             name=f"{resource_name}-tailscale-config",
@@ -126,7 +126,7 @@ async def create_tailscale_resources(
             "serve.json": json.dumps(serve_config, indent=2)
         }
     )
-    
+
     try:
         api.create_namespaced_config_map(namespace=namespace, body=configmap)
     except client.rest.ApiException as e:
@@ -138,7 +138,7 @@ async def create_tailscale_resources(
             )
         else:
             raise
-    
+
     # Create PVC for Tailscale state
     pvc = client.V1PersistentVolumeClaim(
         metadata=client.V1ObjectMeta(
@@ -157,7 +157,7 @@ async def create_tailscale_resources(
             )
         )
     )
-    
+
     try:
         api.create_namespaced_persistent_volume_claim(namespace=namespace, body=pvc)
     except client.rest.ApiException as e:
@@ -169,7 +169,7 @@ async def delete_tailscale_resources(namespace: str, name: str, component: str) 
     """Delete Tailscale resources."""
     api = client.CoreV1Api()
     resource_name = f"{name}-{component}"
-    
+
     try:
         api.delete_namespaced_config_map(
             name=f"{resource_name}-tailscale-config",
@@ -178,7 +178,7 @@ async def delete_tailscale_resources(namespace: str, name: str, component: str) 
     except client.rest.ApiException as e:
         if e.status != 404:
             raise
-    
+
     try:
         api.delete_namespaced_persistent_volume_claim(
             name=f"{resource_name}-tailscale-state",
@@ -192,7 +192,7 @@ async def delete_tailscale_resources(namespace: str, name: str, component: str) 
 def get_tailscale_rbac(namespace: str, name: str, component: str) -> tuple:
     """Generate RBAC resources for Tailscale state secret management."""
     resource_name = f"{name}-{component}"
-    
+
     role = {
         "apiVersion": "rbac.authorization.k8s.io/v1",
         "kind": "Role",
@@ -208,7 +208,7 @@ def get_tailscale_rbac(namespace: str, name: str, component: str) -> tuple:
             }
         ]
     }
-    
+
     role_binding = {
         "apiVersion": "rbac.authorization.k8s.io/v1",
         "kind": "RoleBinding",
@@ -229,6 +229,6 @@ def get_tailscale_rbac(namespace: str, name: str, component: str) -> tuple:
             "apiGroup": "rbac.authorization.k8s.io"
         }
     }
-    
+
     return role, role_binding
 

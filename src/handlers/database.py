@@ -18,12 +18,12 @@ async def create_database(
 ) -> None:
     """Create a CloudNative-PG PostgreSQL cluster."""
     api = client.CustomObjectsApi()
-    
+
     # Build resource requirements
     res = resources or {}
     requests = res.get('requests', {})
     limits = res.get('limits', {})
-    
+
     # Base cluster spec
     cluster_spec = {
         "instances": instances,
@@ -53,7 +53,7 @@ async def create_database(
             }
         }
     }
-    
+
     # Add backup configuration if enabled
     if backup:
         s3_config = backup.get('s3', {})
@@ -75,9 +75,9 @@ async def create_database(
                 },
                 "retentionPolicy": backup.get('retentionPolicy', '30d')
             }
-            
+
             # Note: ScheduledBackup is a separate CR, we'll create it below
-    
+
     cluster = {
         "apiVersion": "postgresql.cnpg.io/v1",
         "kind": "Cluster",
@@ -91,7 +91,7 @@ async def create_database(
         },
         "spec": cluster_spec
     }
-    
+
     try:
         api.create_namespaced_custom_object(
             group="postgresql.cnpg.io",
@@ -112,7 +112,7 @@ async def create_database(
             )
         else:
             raise kopf.PermanentError(f"Failed to create database: {e}")
-    
+
     # Create scheduled backup if backup is enabled
     if backup and backup.get('s3', {}).get('endpoint'):
         await create_scheduled_backup(
@@ -125,7 +125,7 @@ async def create_database(
 async def create_scheduled_backup(namespace: str, name: str, schedule: str) -> None:
     """Create a ScheduledBackup CR for automatic backups."""
     api = client.CustomObjectsApi()
-    
+
     scheduled_backup = {
         "apiVersion": "postgresql.cnpg.io/v1",
         "kind": "ScheduledBackup",
@@ -145,7 +145,7 @@ async def create_scheduled_backup(namespace: str, name: str, schedule: str) -> N
             }
         }
     }
-    
+
     try:
         api.create_namespaced_custom_object(
             group="postgresql.cnpg.io",
@@ -171,7 +171,7 @@ async def create_scheduled_backup(namespace: str, name: str, schedule: str) -> N
 async def delete_database(namespace: str, name: str) -> None:
     """Delete the PostgreSQL cluster."""
     api = client.CustomObjectsApi()
-    
+
     # Delete scheduled backup first
     try:
         api.delete_namespaced_custom_object(
@@ -184,7 +184,7 @@ async def delete_database(namespace: str, name: str) -> None:
     except ApiException as e:
         if e.status != 404:
             raise
-    
+
     # Delete cluster
     try:
         api.delete_namespaced_custom_object(
@@ -202,7 +202,7 @@ async def delete_database(namespace: str, name: str) -> None:
 async def check_database_ready(namespace: str, name: str) -> bool:
     """Check if the PostgreSQL cluster is ready."""
     api = client.CustomObjectsApi()
-    
+
     try:
         cluster = api.get_namespaced_custom_object(
             group="postgresql.cnpg.io",
@@ -211,12 +211,12 @@ async def check_database_ready(namespace: str, name: str) -> bool:
             plural="clusters",
             name=f"{name}-db"
         )
-        
+
         status = cluster.get('status', {})
         phase = status.get('phase', '')
-        
+
         return phase == 'Cluster in healthy state'
-        
+
     except ApiException as e:
         if e.status == 404:
             return False

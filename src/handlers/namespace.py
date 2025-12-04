@@ -10,7 +10,7 @@ import kopf
 async def create_namespace(namespace: str, cluster_name: str) -> None:
     """Create namespace for the OdooCluster."""
     api = client.CoreV1Api()
-    
+
     ns = client.V1Namespace(
         metadata=client.V1ObjectMeta(
             name=namespace,
@@ -20,7 +20,7 @@ async def create_namespace(namespace: str, cluster_name: str) -> None:
             }
         )
     )
-    
+
     try:
         api.create_namespace(body=ns)
     except ApiException as e:
@@ -33,7 +33,7 @@ async def create_namespace(namespace: str, cluster_name: str) -> None:
 async def delete_namespace(namespace: str) -> None:
     """Delete the namespace (cascades to all resources)."""
     api = client.CoreV1Api()
-    
+
     try:
         api.delete_namespace(name=namespace)
     except ApiException as e:

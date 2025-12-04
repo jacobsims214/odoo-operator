@@ -27,14 +27,14 @@ async def create_metabase(
     core_api = client.CoreV1Api()
     apps_api = client.AppsV1Api()
     rbac_api = client.RbacAuthorizationV1Api()
-    
+
     res = resources or {}
     requests = res.get('requests', {})
     limits = res.get('limits', {})
-    
+
     resource_name = f"{name}-metabase"
     db_secret = f"{name}-db-app"
-    
+
     # Create ServiceAccount
     sa = client.V1ServiceAccount(
         metadata=client.V1ObjectMeta(
@@ -47,13 +47,13 @@ async def create_metabase(
             }
         )
     )
-    
+
     try:
         core_api.create_namespaced_service_account(namespace=namespace, body=sa)
     except ApiException as e:
         if e.status != 409:
             raise
-    
+
     # Create PVC for Metabase H2 database (or use app DB for production)
     pvc = client.V1PersistentVolumeClaim(
         metadata=client.V1ObjectMeta(
@@ -72,13 +72,13 @@ async def create_metabase(
             )
         )
     )
-    
+
     try:
         core_api.create_namespaced_persistent_volume_claim(namespace=namespace, body=pvc)
     except ApiException as e:
         if e.status != 409:
             raise
-    
+
     # Setup Tailscale if enabled
     if tailscale:
         await create_tailscale_resources(
@@ -88,10 +88,10 @@ async def create_metabase(
             target_port=3000,
             funnel=tailscale.get('funnel', False)
         )
-        
+
         # Create RBAC for Tailscale
         role, role_binding = get_tailscale_rbac(namespace, name, "metabase")
-        
+
         try:
             rbac_api.create_namespaced_role(namespace=namespace, body=role)
         except ApiException as e:
@@ -103,7 +103,7 @@ async def create_metabase(
                 )
             else:
                 raise
-        
+
         try:
             rbac_api.create_namespaced_role_binding(namespace=namespace, body=role_binding)
         except ApiException as e:
@@ -115,7 +115,7 @@ async def create_metabase(
                 )
             else:
                 raise
-    
+
     # Build containers
     containers = [
         {
@@ -175,7 +175,7 @@ async def create_metabase(
             }
         }
     ]
-    
+
     # Add Tailscale sidecar if enabled
     if tailscale:
         containers.append(
@@ -189,7 +189,7 @@ async def create_metabase(
                 auth_secret_name=tailscale_auth_secret
             )
         )
-    
+
     # Build volumes
     volumes = [
         {
@@ -199,10 +199,10 @@ async def create_metabase(
             }
         }
     ]
-    
+
     if tailscale:
         volumes.extend(get_tailscale_volumes(f"{name}-metabase"))
-    
+
     # Create Deployment
     deployment = client.V1Deployment(
         metadata=client.V1ObjectMeta(
@@ -237,7 +237,7 @@ async def create_metabase(
             )
         )
     )
-    
+
     try:
         apps_api.create_namespaced_deployment(namespace=namespace, body=deployment)
     except ApiException as e:
@@ -249,7 +249,7 @@ async def create_metabase(
             )
         else:
             raise kopf.PermanentError(f"Failed to create Metabase: {e}")
-    
+
     # Create Service
     service = client.V1Service(
         metadata=client.V1ObjectMeta(
@@ -276,7 +276,7 @@ async def create_metabase(
             ]
         )
     )
-    
+
     try:
         core_api.create_namespaced_service(namespace=namespace, body=service)
     except ApiException as e:
@@ -295,23 +295,23 @@ async def delete_metabase(namespace: str, name: str) -> None:
     core_api = client.CoreV1Api()
     apps_api = client.AppsV1Api()
     rbac_api = client.RbacAuthorizationV1Api()
-    
+
     resource_name = f"{name}-metabase"
-    
+
     # Delete deployment
     try:
         apps_api.delete_namespaced_deployment(name=resource_name, namespace=namespace)
     except ApiException as e:
         if e.status != 404:
             raise
-    
+
     # Delete service
     try:
         core_api.delete_namespaced_service(name=resource_name, namespace=namespace)
     except ApiException as e:
         if e.status != 404:
             raise
-    
+
     # Delete PVC
     try:
         core_api.delete_namespaced_persistent_volume_claim(
@@ -321,23 +321,23 @@ async def delete_metabase(namespace: str, name: str) -> None:
     except ApiException as e:
         if e.status != 404:
             raise
-    
+
     # Delete Tailscale resources
     await delete_tailscale_resources(namespace, name, "metabase")
-    
+
     # Delete RBAC
     try:
         rbac_api.delete_namespaced_role(name=f"{resource_name}-tailscale", namespace=namespace)
     except ApiException as e:
         if e.status != 404:
             raise
-    
+
     try:
         rbac_api.delete_namespaced_role_binding(name=f"{resource_name}-tailscale", namespace=namespace)
     except ApiException as e:
         if e.status != 404:
             raise
-    
+
     # Delete ServiceAccount
     try:
         core_api.delete_namespaced_service_account(name=resource_name, namespace=namespace)

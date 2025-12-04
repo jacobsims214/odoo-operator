@@ -25,16 +25,16 @@ async def get_cluster_status(namespace: str, name: str) -> dict:
     """Get aggregated status of all cluster components."""
     apps_api = client.AppsV1Api()
     custom_api = client.CustomObjectsApi()
-    
+
     status = {
         "database": {"ready": False},
         "odoo": {"ready": False},
         "valkey": {"ready": False},
         "metabase": {"ready": False}
     }
-    
+
     cluster_namespace = f"odoo-{name}"
-    
+
     # Check database
     try:
         db = custom_api.get_namespaced_custom_object(
@@ -49,7 +49,7 @@ async def get_cluster_status(namespace: str, name: str) -> dict:
         status["database"]["phase"] = phase
     except ApiException:
         pass
-    
+
     # Check Odoo deployment
     try:
         deployment = apps_api.read_namespaced_deployment(
@@ -62,7 +62,7 @@ async def get_cluster_status(namespace: str, name: str) -> dict:
         status["odoo"]["replicas"] = f"{ready}/{desired}"
     except ApiException:
         pass
-    
+
     # Check Valkey
     try:
         sts = apps_api.read_namespaced_stateful_set(
@@ -75,7 +75,7 @@ async def get_cluster_status(namespace: str, name: str) -> dict:
     except ApiException as e:
         if e.status == 404:
             status["valkey"]["exists"] = False
-    
+
     # Check Metabase
     try:
         deployment = apps_api.read_namespaced_deployment(
@@ -88,6 +88,6 @@ async def get_cluster_status(namespace: str, name: str) -> dict:
     except ApiException as e:
         if e.status == 404:
             status["metabase"]["exists"] = False
-    
+
     return status
 

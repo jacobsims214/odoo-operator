@@ -16,13 +16,13 @@ async def create_valkey(
     """Create Valkey StatefulSet for Odoo caching."""
     core_api = client.CoreV1Api()
     apps_api = client.AppsV1Api()
-    
+
     res = resources or {}
     requests = res.get('requests', {})
     limits = res.get('limits', {})
-    
+
     resource_name = f"{name}-valkey"
-    
+
     # Create Service (headless for StatefulSet)
     service = client.V1Service(
         metadata=client.V1ObjectMeta(
@@ -49,7 +49,7 @@ async def create_valkey(
             ]
         )
     )
-    
+
     try:
         core_api.create_namespaced_service(namespace=namespace, body=service)
     except ApiException as e:
@@ -61,7 +61,7 @@ async def create_valkey(
             )
         else:
             raise
-    
+
     # Create StatefulSet
     statefulset = client.V1StatefulSet(
         metadata=client.V1ObjectMeta(
@@ -155,7 +155,7 @@ async def create_valkey(
             ]
         )
     )
-    
+
     try:
         apps_api.create_namespaced_stateful_set(namespace=namespace, body=statefulset)
     except ApiException as e:
@@ -173,23 +173,23 @@ async def delete_valkey(namespace: str, name: str) -> None:
     """Delete Valkey StatefulSet and related resources."""
     core_api = client.CoreV1Api()
     apps_api = client.AppsV1Api()
-    
+
     resource_name = f"{name}-valkey"
-    
+
     # Delete StatefulSet
     try:
         apps_api.delete_namespaced_stateful_set(name=resource_name, namespace=namespace)
     except ApiException as e:
         if e.status != 404:
             raise
-    
+
     # Delete Service
     try:
         core_api.delete_namespaced_service(name=resource_name, namespace=namespace)
     except ApiException as e:
         if e.status != 404:
             raise
-    
+
     # Note: PVCs from StatefulSet need manual cleanup or use cascade delete
     # The namespace deletion will handle this
 
