@@ -13,11 +13,11 @@ from typing import Optional
 def get_cluster_labels(name: str, component: Optional[str] = None) -> dict:
     """Generate standard labels for cluster resources."""
     labels = {
-        "app.kubernetes.io/managed-by": "simstech-odoo-operator",
-        "simstech-odoo/cluster": name
+        "app.kubernetes.io/managed-by": "odoo.simstech.cloud-operator",
+        "odoo.simstech.cloud/cluster": name
     }
     if component:
-        labels["simstech-odoo/component"] = component
+        labels["odoo.simstech.cloud/component"] = component
     return labels
 
 

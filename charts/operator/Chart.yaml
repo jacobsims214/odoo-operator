@@ -1,5 +1,5 @@
 apiVersion: v2
-name: simstech-odoo-operator
+name: odoo.simstech.cloud-operator
 description: Kubernetes operator for managing multi-tenant Odoo deployments
 type: application
 version: 0.1.0

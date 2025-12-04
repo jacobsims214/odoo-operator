@@ -15,8 +15,8 @@ async def create_namespace(namespace: str, cluster_name: str) -> None:
         metadata=client.V1ObjectMeta(
             name=namespace,
             labels={
-                "app.kubernetes.io/managed-by": "simstech-odoo-operator",
-                "simstech-odoo/cluster": cluster_name,
+                "app.kubernetes.io/managed-by": "odoo.simstech.cloud-operator",
+                "odoo.simstech.cloud/cluster": cluster_name,
             }
         )
     )

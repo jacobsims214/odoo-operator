@@ -1,5 +1,5 @@
 [project]
-name = "simstech-odoo-operator"
+name = "odoo.simstech.cloud-operator"
 version = "0.1.0"
 description = "Kubernetes operator for managing multi-tenant Odoo deployments"
 requires-python = ">=3.12"

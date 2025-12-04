@@ -148,9 +148,9 @@ async def create_odoo(
             name=resource_name,
             namespace=namespace,
             labels={
-                "app.kubernetes.io/managed-by": "simstech-odoo-operator",
-                "simstech-odoo/cluster": name,
-                "simstech-odoo/component": "odoo"
+                "app.kubernetes.io/managed-by": "odoo.simstech.cloud-operator",
+                "odoo.simstech.cloud/cluster": name,
+                "odoo.simstech.cloud/component": "odoo"
             }
         )
     )
@@ -167,9 +167,9 @@ async def create_odoo(
             name=f"{resource_name}-filestore",
             namespace=namespace,
             labels={
-                "app.kubernetes.io/managed-by": "simstech-odoo-operator",
-                "simstech-odoo/cluster": name,
-                "simstech-odoo/component": "odoo"
+                "app.kubernetes.io/managed-by": "odoo.simstech.cloud-operator",
+                "odoo.simstech.cloud/cluster": name,
+                "odoo.simstech.cloud/component": "odoo"
             }
         ),
         spec=client.V1PersistentVolumeClaimSpec(
@@ -193,9 +193,9 @@ async def create_odoo(
                 name=f"{resource_name}-addons",
                 namespace=namespace,
                 labels={
-                    "app.kubernetes.io/managed-by": "simstech-odoo-operator",
-                    "simstech-odoo/cluster": name,
-                    "simstech-odoo/component": "odoo"
+                    "app.kubernetes.io/managed-by": "odoo.simstech.cloud-operator",
+                    "odoo.simstech.cloud/cluster": name,
+                    "odoo.simstech.cloud/component": "odoo"
                 }
             ),
             spec=client.V1PersistentVolumeClaimSpec(
@@ -241,9 +241,9 @@ list_db = False
             name=f"{resource_name}-config",
             namespace=namespace,
             labels={
-                "app.kubernetes.io/managed-by": "simstech-odoo-operator",
-                "simstech-odoo/cluster": name,
-                "simstech-odoo/component": "odoo"
+                "app.kubernetes.io/managed-by": "odoo.simstech.cloud-operator",
+                "odoo.simstech.cloud/cluster": name,
+                "odoo.simstech.cloud/component": "odoo"
             }
         ),
         data=configmap_data
@@ -478,17 +478,17 @@ list_db = False
             name=resource_name,
             namespace=namespace,
             labels={
-                "app.kubernetes.io/managed-by": "simstech-odoo-operator",
-                "simstech-odoo/cluster": name,
-                "simstech-odoo/component": "odoo"
+                "app.kubernetes.io/managed-by": "odoo.simstech.cloud-operator",
+                "odoo.simstech.cloud/cluster": name,
+                "odoo.simstech.cloud/component": "odoo"
             }
         ),
         spec=client.V1DeploymentSpec(
             replicas=replicas,
             selector=client.V1LabelSelector(
                 match_labels={
-                    "simstech-odoo/cluster": name,
-                    "simstech-odoo/component": "odoo"
+                    "odoo.simstech.cloud/cluster": name,
+                    "odoo.simstech.cloud/component": "odoo"
                 }
             ),
             strategy=client.V1DeploymentStrategy(
@@ -501,11 +501,11 @@ list_db = False
             template=client.V1PodTemplateSpec(
                 metadata=client.V1ObjectMeta(
                     labels={
-                        "simstech-odoo/cluster": name,
-                        "simstech-odoo/component": "odoo"
+                        "odoo.simstech.cloud/cluster": name,
+                        "odoo.simstech.cloud/component": "odoo"
                     },
                     annotations={
-                        "simstech-odoo/config-hash": config_hash
+                        "odoo.simstech.cloud/config-hash": config_hash
                     }
                 ),
                 spec=client.V1PodSpec(**pod_spec)
@@ -531,16 +531,16 @@ list_db = False
             name=resource_name,
             namespace=namespace,
             labels={
-                "app.kubernetes.io/managed-by": "simstech-odoo-operator",
-                "simstech-odoo/cluster": name,
-                "simstech-odoo/component": "odoo"
+                "app.kubernetes.io/managed-by": "odoo.simstech.cloud-operator",
+                "odoo.simstech.cloud/cluster": name,
+                "odoo.simstech.cloud/component": "odoo"
             }
         ),
         spec=client.V1ServiceSpec(
             type="ClusterIP",
             selector={
-                "simstech-odoo/cluster": name,
-                "simstech-odoo/component": "odoo"
+                "odoo.simstech.cloud/cluster": name,
+                "odoo.simstech.cloud/component": "odoo"
             },
             ports=[
                 client.V1ServicePort(

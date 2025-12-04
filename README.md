@@ -7,7 +7,7 @@ A Kubernetes operator that manages multi-tenant Odoo deployments. Each `OdooClus
 ```bash
 # Install the operator
 helm install odoo-operator ./charts/operator \
-  --namespace simstech-odoo-operator \
+  --namespace odoo.simstech.cloud-operator \
   --create-namespace
 
 # Deploy a customer's Odoo
@@ -49,8 +49,8 @@ kubectl apply -f config/manager.yaml
 ### 3. Verify Installation
 
 ```bash
-kubectl get pods -n simstech-odoo-operator
-kubectl get crd odooclusters.simstech-odoo
+kubectl get pods -n odoo.simstech.cloud-operator
+kubectl get crd odooclusters.odoo.simstech.cloud
 ```
 
 ## Usage
@@ -60,7 +60,7 @@ kubectl get crd odooclusters.simstech-odoo
 #### Minimal Example
 
 ```yaml
-apiVersion: simstech-odoo/v1alpha1
+apiVersion: odoo.simstech.cloud/v1alpha1
 kind: OdooCluster
 metadata:
   name: demo
@@ -75,7 +75,7 @@ spec:
 #### Full Example with All Features
 
 ```yaml
-apiVersion: simstech-odoo/v1alpha1
+apiVersion: odoo.simstech.cloud/v1alpha1
 kind: OdooCluster
 metadata:
   name: acme-corp
@@ -298,7 +298,7 @@ After the first push, make the package public in GitHub:
 ### Operator Logs
 
 ```bash
-kubectl logs -n simstech-odoo-operator deployment/simstech-odoo-operator -f
+kubectl logs -n odoo.simstech.cloud-operator deployment/odoo.simstech.cloud-operator -f
 ```
 
 ### Database Not Ready

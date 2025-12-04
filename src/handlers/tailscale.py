@@ -117,9 +117,9 @@ async def create_tailscale_resources(
             name=f"{resource_name}-tailscale-config",
             namespace=namespace,
             labels={
-                "app.kubernetes.io/managed-by": "simstech-odoo-operator",
-                "simstech-odoo/cluster": name,
-                "simstech-odoo/component": component
+                "app.kubernetes.io/managed-by": "odoo.simstech.cloud-operator",
+                "odoo.simstech.cloud/cluster": name,
+                "odoo.simstech.cloud/component": component
             }
         ),
         data={
@@ -145,9 +145,9 @@ async def create_tailscale_resources(
             name=f"{resource_name}-tailscale-state",
             namespace=namespace,
             labels={
-                "app.kubernetes.io/managed-by": "simstech-odoo-operator",
-                "simstech-odoo/cluster": name,
-                "simstech-odoo/component": component
+                "app.kubernetes.io/managed-by": "odoo.simstech.cloud-operator",
+                "odoo.simstech.cloud/cluster": name,
+                "odoo.simstech.cloud/component": component
             }
         ),
         spec=client.V1PersistentVolumeClaimSpec(

@@ -1,7 +1,7 @@
 # Minimal OdooCluster example
 # Just Odoo + PostgreSQL, no addons or Tailscale
 
-apiVersion: simstech-odoo/v1alpha1
+apiVersion: odoo.simstech.cloud/v1alpha1
 kind: OdooCluster
 metadata:
   name: demo

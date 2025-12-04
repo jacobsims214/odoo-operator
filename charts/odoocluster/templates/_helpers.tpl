@@ -18,7 +18,7 @@ Common labels
 {{- define "odoocluster.labels" -}}
 helm.sh/chart: {{ include "odoocluster.chart" . }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
-simstech-odoo/cluster: {{ include "odoocluster.name" . }}
+odoo.simstech.cloud/cluster: {{ include "odoocluster.name" . }}
 {{- end }}
 
 {{/*

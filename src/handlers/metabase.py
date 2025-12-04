@@ -41,9 +41,9 @@ async def create_metabase(
             name=resource_name,
             namespace=namespace,
             labels={
-                "app.kubernetes.io/managed-by": "simstech-odoo-operator",
-                "simstech-odoo/cluster": name,
-                "simstech-odoo/component": "metabase"
+                "app.kubernetes.io/managed-by": "odoo.simstech.cloud-operator",
+                "odoo.simstech.cloud/cluster": name,
+                "odoo.simstech.cloud/component": "metabase"
             }
         )
     )
@@ -60,9 +60,9 @@ async def create_metabase(
             name=f"{resource_name}-data",
             namespace=namespace,
             labels={
-                "app.kubernetes.io/managed-by": "simstech-odoo-operator",
-                "simstech-odoo/cluster": name,
-                "simstech-odoo/component": "metabase"
+                "app.kubernetes.io/managed-by": "odoo.simstech.cloud-operator",
+                "odoo.simstech.cloud/cluster": name,
+                "odoo.simstech.cloud/component": "metabase"
             }
         ),
         spec=client.V1PersistentVolumeClaimSpec(
@@ -209,24 +209,24 @@ async def create_metabase(
             name=resource_name,
             namespace=namespace,
             labels={
-                "app.kubernetes.io/managed-by": "simstech-odoo-operator",
-                "simstech-odoo/cluster": name,
-                "simstech-odoo/component": "metabase"
+                "app.kubernetes.io/managed-by": "odoo.simstech.cloud-operator",
+                "odoo.simstech.cloud/cluster": name,
+                "odoo.simstech.cloud/component": "metabase"
             }
         ),
         spec=client.V1DeploymentSpec(
             replicas=1,
             selector=client.V1LabelSelector(
                 match_labels={
-                    "simstech-odoo/cluster": name,
-                    "simstech-odoo/component": "metabase"
+                    "odoo.simstech.cloud/cluster": name,
+                    "odoo.simstech.cloud/component": "metabase"
                 }
             ),
             template=client.V1PodTemplateSpec(
                 metadata=client.V1ObjectMeta(
                     labels={
-                        "simstech-odoo/cluster": name,
-                        "simstech-odoo/component": "metabase"
+                        "odoo.simstech.cloud/cluster": name,
+                        "odoo.simstech.cloud/component": "metabase"
                     }
                 ),
                 spec=client.V1PodSpec(
@@ -256,16 +256,16 @@ async def create_metabase(
             name=resource_name,
             namespace=namespace,
             labels={
-                "app.kubernetes.io/managed-by": "simstech-odoo-operator",
-                "simstech-odoo/cluster": name,
-                "simstech-odoo/component": "metabase"
+                "app.kubernetes.io/managed-by": "odoo.simstech.cloud-operator",
+                "odoo.simstech.cloud/cluster": name,
+                "odoo.simstech.cloud/component": "metabase"
             }
         ),
         spec=client.V1ServiceSpec(
             type="ClusterIP",
             selector={
-                "simstech-odoo/cluster": name,
-                "simstech-odoo/component": "metabase"
+                "odoo.simstech.cloud/cluster": name,
+                "odoo.simstech.cloud/component": "metabase"
             },
             ports=[
                 client.V1ServicePort(

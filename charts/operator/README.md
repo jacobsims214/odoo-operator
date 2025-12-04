@@ -16,7 +16,7 @@ Deploys the Simstech Odoo Operator to manage OdooCluster resources.
 
 # Install the operator
 helm install odoo-operator ./charts/operator \
-  --namespace simstech-odoo-operator \
+  --namespace odoo.simstech.cloud-operator \
   --create-namespace
 ```
 
@@ -38,12 +38,12 @@ helm install odoo-operator ./charts/operator \
 ## Uninstallation
 
 ```bash
-helm uninstall odoo-operator -n simstech-odoo-operator
+helm uninstall odoo-operator -n odoo.simstech.cloud-operator
 ```
 
 Note: CRDs are not deleted automatically. To remove:
 
 ```bash
-kubectl delete crd odooclusters.simstech-odoo
+kubectl delete crd odooclusters.odoo.simstech.cloud
 ```
 

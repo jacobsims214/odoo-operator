@@ -30,7 +30,7 @@ def configure(settings: kopf.OperatorSettings, **_):
     logger.info("Simstech Odoo Operator starting...")
 
 
-@kopf.on.create('simstech-odoo', 'v1alpha1', 'odooclusters')
+@kopf.on.create('odoo.simstech.cloud', 'v1alpha1', 'odooclusters')
 async def on_create(spec, name, namespace, logger, patch, **kwargs):
     """Handle OdooCluster creation."""
     logger.info(f"Creating OdooCluster: {name} in namespace: {namespace}")
@@ -140,7 +140,7 @@ async def on_create(spec, name, namespace, logger, patch, **kwargs):
         raise kopf.PermanentError(str(e))
 
 
-@kopf.on.update('simstech-odoo', 'v1alpha1', 'odooclusters')
+@kopf.on.update('odoo.simstech.cloud', 'v1alpha1', 'odooclusters')
 async def on_update(spec, name, namespace, logger, patch, old, new, **kwargs):
     """Handle OdooCluster updates."""
     logger.info(f"Updating OdooCluster: {name} in namespace: {namespace}")
@@ -153,7 +153,7 @@ async def on_update(spec, name, namespace, logger, patch, old, new, **kwargs):
     await on_create(spec, name, namespace, logger, patch, **kwargs)
 
 
-@kopf.on.delete('simstech-odoo', 'v1alpha1', 'odooclusters')
+@kopf.on.delete('odoo.simstech.cloud', 'v1alpha1', 'odooclusters')
 async def on_delete(spec, name, namespace, logger, **kwargs):
     """Handle OdooCluster deletion."""
     logger.info(f"Deleting OdooCluster: {name} in namespace: {namespace}")
@@ -188,7 +188,7 @@ async def on_delete(spec, name, namespace, logger, **kwargs):
         raise
 
 
-@kopf.timer('simstech-odoo', 'v1alpha1', 'odooclusters', interval=30.0)
+@kopf.timer('odoo.simstech.cloud', 'v1alpha1', 'odooclusters', interval=30.0)
 async def check_status(spec, name, namespace, logger, patch, status, **kwargs):
     """Periodic status check for database readiness."""
     if status.get('phase') != 'Ready':

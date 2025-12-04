@@ -85,8 +85,8 @@ async def create_database(
             "name": f"{name}-db",
             "namespace": namespace,
             "labels": {
-                "app.kubernetes.io/managed-by": "simstech-odoo-operator",
-                "simstech-odoo/cluster": name
+                "app.kubernetes.io/managed-by": "odoo.simstech.cloud-operator",
+                "odoo.simstech.cloud/cluster": name
             }
         },
         "spec": cluster_spec
@@ -133,8 +133,8 @@ async def create_scheduled_backup(namespace: str, name: str, schedule: str) -> N
             "name": f"{name}-db-backup",
             "namespace": namespace,
             "labels": {
-                "app.kubernetes.io/managed-by": "simstech-odoo-operator",
-                "simstech-odoo/cluster": name
+                "app.kubernetes.io/managed-by": "odoo.simstech.cloud-operator",
+                "odoo.simstech.cloud/cluster": name
             }
         },
         "spec": {

@@ -29,16 +29,16 @@ async def create_valkey(
             name=resource_name,
             namespace=namespace,
             labels={
-                "app.kubernetes.io/managed-by": "simstech-odoo-operator",
-                "simstech-odoo/cluster": name,
-                "simstech-odoo/component": "valkey"
+                "app.kubernetes.io/managed-by": "odoo.simstech.cloud-operator",
+                "odoo.simstech.cloud/cluster": name,
+                "odoo.simstech.cloud/component": "valkey"
             }
         ),
         spec=client.V1ServiceSpec(
             type="ClusterIP",
             selector={
-                "simstech-odoo/cluster": name,
-                "simstech-odoo/component": "valkey"
+                "odoo.simstech.cloud/cluster": name,
+                "odoo.simstech.cloud/component": "valkey"
             },
             ports=[
                 client.V1ServicePort(
@@ -68,9 +68,9 @@ async def create_valkey(
             name=resource_name,
             namespace=namespace,
             labels={
-                "app.kubernetes.io/managed-by": "simstech-odoo-operator",
-                "simstech-odoo/cluster": name,
-                "simstech-odoo/component": "valkey"
+                "app.kubernetes.io/managed-by": "odoo.simstech.cloud-operator",
+                "odoo.simstech.cloud/cluster": name,
+                "odoo.simstech.cloud/component": "valkey"
             }
         ),
         spec=client.V1StatefulSetSpec(
@@ -78,15 +78,15 @@ async def create_valkey(
             replicas=1,
             selector=client.V1LabelSelector(
                 match_labels={
-                    "simstech-odoo/cluster": name,
-                    "simstech-odoo/component": "valkey"
+                    "odoo.simstech.cloud/cluster": name,
+                    "odoo.simstech.cloud/component": "valkey"
                 }
             ),
             template=client.V1PodTemplateSpec(
                 metadata=client.V1ObjectMeta(
                     labels={
-                        "simstech-odoo/cluster": name,
-                        "simstech-odoo/component": "valkey"
+                        "odoo.simstech.cloud/cluster": name,
+                        "odoo.simstech.cloud/component": "valkey"
                     }
                 ),
                 spec=client.V1PodSpec(
@@ -141,8 +141,8 @@ async def create_valkey(
                     metadata=client.V1ObjectMeta(
                         name="data",
                         labels={
-                            "simstech-odoo/cluster": name,
-                            "simstech-odoo/component": "valkey"
+                            "odoo.simstech.cloud/cluster": name,
+                            "odoo.simstech.cloud/component": "valkey"
                         }
                     ),
                     spec=client.V1PersistentVolumeClaimSpec(

@@ -13,5 +13,5 @@ COPY src/ ./src/
 RUN adduser --disabled-password --gecos "" --uid 1000 appuser
 USER appuser
 
-# Start the operator
-CMD ["kopf", "run", "--standalone", "--liveness=http://0.0.0.0:8080/healthz", "src/main.py"]
+# Start the operator (--all-namespaces to watch cluster-wide)
+CMD ["kopf", "run", "--standalone", "--all-namespaces", "--liveness=http://0.0.0.0:8080/healthz", "src/main.py"]

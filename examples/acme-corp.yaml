@@ -6,7 +6,7 @@
 # - Metabase BI
 # - Tailscale access for both Odoo and BI
 
-apiVersion: simstech-odoo/v1alpha1
+apiVersion: odoo.simstech.cloud/v1alpha1
 kind: OdooCluster
 metadata:
   name: acme-corp
