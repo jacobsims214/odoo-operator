@@ -399,6 +399,41 @@ list_db = False
                 "readOnly": True
             })
 
+    # Add Odoo database init container (runs once to initialize base module)
+    init_containers.append({
+        "name": "init-odoo-db",
+        "image": odoo_image,
+        "command": ["/bin/bash", "-c"],
+        "args": [
+            # Check if database is initialized, if not run init
+            """
+            echo "Checking if Odoo database needs initialization..."
+            odoo --database=odoo --stop-after-init -i base 2>&1 | tee /tmp/init.log
+            if grep -q "already installed" /tmp/init.log || grep -q "Modules loaded" /tmp/init.log; then
+                echo "Database already initialized or initialized successfully"
+            fi
+            echo "Init container complete"
+            """
+        ],
+        "env": [
+            {"name": "HOST", "value": db_host},
+            {"name": "USER", "value": "odoo"},
+            {
+                "name": "PASSWORD",
+                "valueFrom": {
+                    "secretKeyRef": {
+                        "name": db_secret,
+                        "key": "password"
+                    }
+                }
+            }
+        ],
+        "volumeMounts": [
+            {"name": "filestore", "mountPath": "/var/lib/odoo"},
+            {"name": "config", "mountPath": "/etc/odoo/odoo.conf", "subPath": "odoo.conf"}
+        ]
+    })
+
     # Build main containers
     odoo_volume_mounts = [
         {
