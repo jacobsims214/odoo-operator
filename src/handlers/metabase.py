@@ -23,13 +23,30 @@ def generate_password(length: int = 32) -> str:
     return ''.join(secrets.choice(alphabet) for _ in range(length))
 
 
+def build_owner_references(owner_ref: Optional[dict]) -> Optional[list]:
+    """Convert owner_ref dict to V1OwnerReference list."""
+    if not owner_ref:
+        return None
+    return [
+        client.V1OwnerReference(
+            api_version=owner_ref.get('apiVersion'),
+            kind=owner_ref.get('kind'),
+            name=owner_ref.get('name'),
+            uid=owner_ref.get('uid'),
+            controller=owner_ref.get('controller', True),
+            block_owner_deletion=owner_ref.get('blockOwnerDeletion', True)
+        )
+    ]
+
+
 async def create_metabase(
     namespace: str,
     name: str,
     storage: str = "5Gi",
     resources: dict = None,
     tailscale: Optional[dict] = None,
-    tailscale_auth_secret: str = "tailscale-auth"
+    tailscale_auth_secret: str = "tailscale-auth",
+    owner_ref: Optional[dict] = None
 ) -> None:
     """Create Metabase BI deployment."""
     core_api = client.CoreV1Api()
@@ -42,12 +59,14 @@ async def create_metabase(
 
     resource_name = f"{name}-metabase"
     db_secret = f"{name}-db-app"
+    owner_refs = build_owner_references(owner_ref)
 
     # Create ServiceAccount
     sa = client.V1ServiceAccount(
         metadata=client.V1ObjectMeta(
             name=resource_name,
             namespace=namespace,
+            owner_references=owner_refs,
             labels={
                 "app.kubernetes.io/managed-by": "odoo.simstech.cloud-operator",
                 "odoo.simstech.cloud/cluster": name,
@@ -67,6 +86,7 @@ async def create_metabase(
         metadata=client.V1ObjectMeta(
             name=f"{resource_name}-data",
             namespace=namespace,
+            owner_references=owner_refs,
             labels={
                 "app.kubernetes.io/managed-by": "odoo.simstech.cloud-operator",
                 "odoo.simstech.cloud/cluster": name,
@@ -102,6 +122,7 @@ async def create_metabase(
                 metadata=client.V1ObjectMeta(
                     name=admin_secret_name,
                     namespace=namespace,
+                    owner_references=owner_refs,
                     labels={
                         "app.kubernetes.io/managed-by": "odoo.simstech.cloud-operator",
                         "odoo.simstech.cloud/cluster": name,
@@ -251,18 +272,22 @@ async def create_metabase(
         volumes.extend(get_tailscale_volumes(f"{name}-metabase"))
 
     # Create Deployment (using raw dict for proper camelCase serialization)
+    deployment_metadata = {
+        "name": resource_name,
+        "namespace": namespace,
+        "labels": {
+            "app.kubernetes.io/managed-by": "odoo.simstech.cloud-operator",
+            "odoo.simstech.cloud/cluster": name,
+            "odoo.simstech.cloud/component": "metabase"
+        }
+    }
+    if owner_ref:
+        deployment_metadata["ownerReferences"] = [owner_ref]
+
     deployment = {
         "apiVersion": "apps/v1",
         "kind": "Deployment",
-        "metadata": {
-            "name": resource_name,
-            "namespace": namespace,
-            "labels": {
-                "app.kubernetes.io/managed-by": "odoo.simstech.cloud-operator",
-                "odoo.simstech.cloud/cluster": name,
-                "odoo.simstech.cloud/component": "metabase"
-            }
-        },
+        "metadata": deployment_metadata,
         "spec": {
             "replicas": 1,
             "selector": {
@@ -304,6 +329,7 @@ async def create_metabase(
         metadata=client.V1ObjectMeta(
             name=resource_name,
             namespace=namespace,
+            owner_references=owner_refs,
             labels={
                 "app.kubernetes.io/managed-by": "odoo.simstech.cloud-operator",
                 "odoo.simstech.cloud/cluster": name,

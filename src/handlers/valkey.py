@@ -5,13 +5,31 @@ Valkey handler - Creates Valkey (Redis-compatible) StatefulSet for caching/sessi
 from kubernetes import client
 from kubernetes.client.rest import ApiException
 import kopf
+from typing import Optional
+
+
+def build_owner_references(owner_ref: Optional[dict]) -> Optional[list]:
+    """Convert owner_ref dict to V1OwnerReference list."""
+    if not owner_ref:
+        return None
+    return [
+        client.V1OwnerReference(
+            api_version=owner_ref.get('apiVersion'),
+            kind=owner_ref.get('kind'),
+            name=owner_ref.get('name'),
+            uid=owner_ref.get('uid'),
+            controller=owner_ref.get('controller', True),
+            block_owner_deletion=owner_ref.get('blockOwnerDeletion', True)
+        )
+    ]
 
 
 async def create_valkey(
     namespace: str,
     name: str,
     storage: str = "1Gi",
-    resources: dict = None
+    resources: dict = None,
+    owner_ref: Optional[dict] = None
 ) -> None:
     """Create Valkey StatefulSet for Odoo caching."""
     core_api = client.CoreV1Api()
@@ -23,6 +41,8 @@ async def create_valkey(
 
     resource_name = f"{name}-valkey"
 
+    owner_refs = build_owner_references(owner_ref)
+
     # Create Service (headless for StatefulSet)
     service = client.V1Service(
         metadata=client.V1ObjectMeta(
@@ -32,7 +52,8 @@ async def create_valkey(
                 "app.kubernetes.io/managed-by": "odoo.simstech.cloud-operator",
                 "odoo.simstech.cloud/cluster": name,
                 "odoo.simstech.cloud/component": "valkey"
-            }
+            },
+            owner_references=owner_refs
         ),
         spec=client.V1ServiceSpec(
             type="ClusterIP",
@@ -71,7 +92,8 @@ async def create_valkey(
                 "app.kubernetes.io/managed-by": "odoo.simstech.cloud-operator",
                 "odoo.simstech.cloud/cluster": name,
                 "odoo.simstech.cloud/component": "valkey"
-            }
+            },
+            owner_references=owner_refs
         ),
         spec=client.V1StatefulSetSpec(
             service_name=resource_name,

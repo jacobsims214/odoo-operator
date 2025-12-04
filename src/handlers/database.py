@@ -14,7 +14,8 @@ async def create_database(
     storage: str = "20Gi",
     instances: int = 1,
     resources: dict = None,
-    backup: Optional[dict] = None
+    backup: Optional[dict] = None,
+    owner_ref: Optional[dict] = None
 ) -> None:
     """Create a CloudNative-PG PostgreSQL cluster."""
     api = client.CustomObjectsApi()
@@ -78,17 +79,21 @@ async def create_database(
 
             # Note: ScheduledBackup is a separate CR, we'll create it below
 
+    cluster_metadata = {
+        "name": f"{name}-db",
+        "namespace": namespace,
+        "labels": {
+            "app.kubernetes.io/managed-by": "odoo.simstech.cloud-operator",
+            "odoo.simstech.cloud/cluster": name
+        }
+    }
+    if owner_ref:
+        cluster_metadata["ownerReferences"] = [owner_ref]
+
     cluster = {
         "apiVersion": "postgresql.cnpg.io/v1",
         "kind": "Cluster",
-        "metadata": {
-            "name": f"{name}-db",
-            "namespace": namespace,
-            "labels": {
-                "app.kubernetes.io/managed-by": "odoo.simstech.cloud-operator",
-                "odoo.simstech.cloud/cluster": name
-            }
-        },
+        "metadata": cluster_metadata,
         "spec": cluster_spec
     }
 
@@ -118,25 +123,35 @@ async def create_database(
         await create_scheduled_backup(
             namespace=namespace,
             name=name,
-            schedule=backup.get('schedule', '0 2 * * *')
+            schedule=backup.get('schedule', '0 2 * * *'),
+            owner_ref=owner_ref
         )
 
 
-async def create_scheduled_backup(namespace: str, name: str, schedule: str) -> None:
+async def create_scheduled_backup(
+    namespace: str,
+    name: str,
+    schedule: str,
+    owner_ref: Optional[dict] = None
+) -> None:
     """Create a ScheduledBackup CR for automatic backups."""
     api = client.CustomObjectsApi()
+
+    backup_metadata = {
+        "name": f"{name}-db-backup",
+        "namespace": namespace,
+        "labels": {
+            "app.kubernetes.io/managed-by": "odoo.simstech.cloud-operator",
+            "odoo.simstech.cloud/cluster": name
+        }
+    }
+    if owner_ref:
+        backup_metadata["ownerReferences"] = [owner_ref]
 
     scheduled_backup = {
         "apiVersion": "postgresql.cnpg.io/v1",
         "kind": "ScheduledBackup",
-        "metadata": {
-            "name": f"{name}-db-backup",
-            "namespace": namespace,
-            "labels": {
-                "app.kubernetes.io/managed-by": "odoo.simstech.cloud-operator",
-                "odoo.simstech.cloud/cluster": name
-            }
-        },
+        "metadata": backup_metadata,
         "spec": {
             "schedule": schedule,
             "backupOwnerReference": "self",

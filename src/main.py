@@ -30,10 +30,25 @@ def configure(settings: kopf.OperatorSettings, **_):
     logger.info("Simstech Odoo Operator starting...")
 
 
+def build_owner_reference(name: str, uid: str) -> dict:
+    """Build ownerReference for child resources to show in ArgoCD."""
+    return {
+        "apiVersion": "odoo.simstech.cloud/v1alpha1",
+        "kind": "OdooCluster",
+        "name": name,
+        "uid": uid,
+        "controller": True,
+        "blockOwnerDeletion": True
+    }
+
+
 @kopf.on.create('odoo.simstech.cloud', 'v1alpha1', 'odooclusters')
-async def on_create(spec, name, namespace, logger, patch, **kwargs):
+async def on_create(spec, name, namespace, logger, patch, meta, **kwargs):
     """Handle OdooCluster creation."""
     logger.info(f"Creating OdooCluster: {name} in namespace: {namespace}")
+
+    # Build owner reference for ArgoCD visibility
+    owner_ref = build_owner_reference(name, meta.get('uid'))
 
     # Update status to Creating
     patch.status['phase'] = 'Creating'
@@ -58,7 +73,8 @@ async def on_create(spec, name, namespace, logger, patch, **kwargs):
             storage=db_spec.get('storage', '20Gi'),
             instances=db_spec.get('instances', 1),
             resources=db_spec.get('resources', {}),
-            backup=backup_spec if backup_spec.get('enabled') else None
+            backup=backup_spec if backup_spec.get('enabled') else None,
+            owner_ref=owner_ref
         )
         patch.status['database'] = {
             'host': f"{name}-db-rw.{cluster_namespace}.svc.cluster.local",
@@ -74,7 +90,8 @@ async def on_create(spec, name, namespace, logger, patch, **kwargs):
                 namespace=cluster_namespace,
                 name=name,
                 storage=valkey_spec.get('storage', '1Gi'),
-                resources=valkey_spec.get('resources', {})
+                resources=valkey_spec.get('resources', {}),
+                owner_ref=owner_ref
             )
 
         # 4. Create Metabase if enabled
@@ -91,7 +108,8 @@ async def on_create(spec, name, namespace, logger, patch, **kwargs):
                 storage=bi_spec.get('storage', '5Gi'),
                 resources=bi_spec.get('resources', {}),
                 tailscale=bi_tailscale if bi_tailscale.get('enabled') else None,
-                tailscale_auth_secret=tailscale.get('authSecretName', 'tailscale-auth')
+                tailscale_auth_secret=tailscale.get('authSecretName', 'tailscale-auth'),
+                owner_ref=owner_ref
             )
 
             if bi_tailscale.get('enabled'):
@@ -119,7 +137,8 @@ async def on_create(spec, name, namespace, logger, patch, **kwargs):
             valkey_enabled=valkey_spec.get('enabled', False),
             valkey_host=f"{name}-valkey" if valkey_spec.get('enabled') else None,
             tailscale=odoo_tailscale if odoo_tailscale.get('enabled') else None,
-            tailscale_auth_secret=tailscale.get('authSecretName', 'tailscale-auth')
+            tailscale_auth_secret=tailscale.get('authSecretName', 'tailscale-auth'),
+            owner_ref=owner_ref
         )
 
         if odoo_tailscale.get('enabled'):

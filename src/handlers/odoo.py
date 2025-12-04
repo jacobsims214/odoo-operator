@@ -121,6 +121,22 @@ def compute_config_hash(
     return hashlib.sha256(config_json.encode()).hexdigest()[:16]
 
 
+def build_owner_references(owner_ref: Optional[dict]) -> Optional[list]:
+    """Convert owner_ref dict to V1OwnerReference list."""
+    if not owner_ref:
+        return None
+    return [
+        client.V1OwnerReference(
+            api_version=owner_ref.get('apiVersion'),
+            kind=owner_ref.get('kind'),
+            name=owner_ref.get('name'),
+            uid=owner_ref.get('uid'),
+            controller=owner_ref.get('controller', True),
+            block_owner_deletion=owner_ref.get('blockOwnerDeletion', True)
+        )
+    ]
+
+
 async def create_odoo(
     namespace: str,
     name: str,
@@ -135,7 +151,8 @@ async def create_odoo(
     valkey_enabled: bool = False,
     valkey_host: Optional[str] = None,
     tailscale: Optional[dict] = None,
-    tailscale_auth_secret: str = "tailscale-auth"
+    tailscale_auth_secret: str = "tailscale-auth",
+    owner_ref: Optional[dict] = None
 ) -> None:
     """Create Odoo deployment with all related resources."""
     core_api = client.CoreV1Api()
@@ -149,12 +166,14 @@ async def create_odoo(
     addons = addons or []
 
     resource_name = f"{name}-odoo"
+    owner_refs = build_owner_references(owner_ref)
 
     # Create ServiceAccount
     sa = client.V1ServiceAccount(
         metadata=client.V1ObjectMeta(
             name=resource_name,
             namespace=namespace,
+            owner_references=owner_refs,
             labels={
                 "app.kubernetes.io/managed-by": "odoo.simstech.cloud-operator",
                 "odoo.simstech.cloud/cluster": name,
@@ -174,6 +193,7 @@ async def create_odoo(
         metadata=client.V1ObjectMeta(
             name=f"{resource_name}-filestore",
             namespace=namespace,
+            owner_references=owner_refs,
             labels={
                 "app.kubernetes.io/managed-by": "odoo.simstech.cloud-operator",
                 "odoo.simstech.cloud/cluster": name,
@@ -207,6 +227,7 @@ async def create_odoo(
                 metadata=client.V1ObjectMeta(
                     name=admin_secret_name,
                     namespace=namespace,
+                    owner_references=owner_refs,
                     labels={
                         "app.kubernetes.io/managed-by": "odoo.simstech.cloud-operator",
                         "odoo.simstech.cloud/cluster": name,
@@ -227,6 +248,7 @@ async def create_odoo(
             metadata=client.V1ObjectMeta(
                 name=f"{resource_name}-addons",
                 namespace=namespace,
+                owner_references=owner_refs,
                 labels={
                     "app.kubernetes.io/managed-by": "odoo.simstech.cloud-operator",
                     "odoo.simstech.cloud/cluster": name,
@@ -286,6 +308,7 @@ list_db = False
         metadata=client.V1ObjectMeta(
             name=f"{resource_name}-config",
             namespace=namespace,
+            owner_references=owner_refs,
             labels={
                 "app.kubernetes.io/managed-by": "odoo.simstech.cloud-operator",
                 "odoo.simstech.cloud/cluster": name,
@@ -384,7 +407,7 @@ list_db = False
         },
         {
             "name": "config",
-            "mountPath": "/etc/odoo",
+            "mountPath": "/etc/odoo/odoo.conf",
             "subPath": "odoo.conf"
         }
     ]
@@ -539,18 +562,22 @@ list_db = False
         pod_spec["initContainers"] = init_containers
 
     # Create Deployment (using raw dict for proper camelCase serialization)
+    deployment_metadata = {
+        "name": resource_name,
+        "namespace": namespace,
+        "labels": {
+            "app.kubernetes.io/managed-by": "odoo.simstech.cloud-operator",
+            "odoo.simstech.cloud/cluster": name,
+            "odoo.simstech.cloud/component": "odoo"
+        }
+    }
+    if owner_ref:
+        deployment_metadata["ownerReferences"] = [owner_ref]
+
     deployment = {
         "apiVersion": "apps/v1",
         "kind": "Deployment",
-        "metadata": {
-            "name": resource_name,
-            "namespace": namespace,
-            "labels": {
-                "app.kubernetes.io/managed-by": "odoo.simstech.cloud-operator",
-                "odoo.simstech.cloud/cluster": name,
-                "odoo.simstech.cloud/component": "odoo"
-            }
-        },
+        "metadata": deployment_metadata,
         "spec": {
             "replicas": replicas,
             "selector": {
@@ -598,6 +625,7 @@ list_db = False
         metadata=client.V1ObjectMeta(
             name=resource_name,
             namespace=namespace,
+            owner_references=owner_refs,
             labels={
                 "app.kubernetes.io/managed-by": "odoo.simstech.cloud-operator",
                 "odoo.simstech.cloud/cluster": name,
