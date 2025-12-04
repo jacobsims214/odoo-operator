@@ -149,6 +149,23 @@ spec:
                         storage:
                           type: string
                           default: "1Gi"
+                        resources:
+                          type: object
+                          properties:
+                            requests:
+                              type: object
+                              properties:
+                                cpu:
+                                  type: string
+                                memory:
+                                  type: string
+                            limits:
+                              type: object
+                              properties:
+                                cpu:
+                                  type: string
+                                memory:
+                                  type: string
                     bi:
                       type: object
                       properties:
@@ -162,6 +179,23 @@ spec:
                         storage:
                           type: string
                           default: "5Gi"
+                        resources:
+                          type: object
+                          properties:
+                            requests:
+                              type: object
+                              properties:
+                                cpu:
+                                  type: string
+                                memory:
+                                  type: string
+                            limits:
+                              type: object
+                              properties:
+                                cpu:
+                                  type: string
+                                memory:
+                                  type: string
                 networking:
                   type: object
                   properties:
