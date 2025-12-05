@@ -428,6 +428,40 @@ list_db = False
                 odoo --database=odoo --db_host={db_host} --db_port=5432 --db_user=odoo --db_password="$PASSWORD" --stop-after-init --init=base --without-demo=True --no-http
                 echo "Database initialization complete"
             fi
+
+            # Set admin user password from secret
+            echo "Setting admin user password..."
+            python3 << 'PYTHON_SCRIPT'
+import psycopg2
+import os
+from passlib.context import CryptContext
+
+try:
+    conn = psycopg2.connect(
+        host='{db_host}',
+        port=5432,
+        user='odoo',
+        password=os.environ.get('PASSWORD'),
+        dbname='odoo'
+    )
+    cur = conn.cursor()
+
+    # Get admin password from env
+    admin_password = os.environ.get('ADMIN_PASSWORD', 'admin')
+
+    # Hash the password using Odoo's method
+    ctx = CryptContext(schemes=['pbkdf2_sha512'])
+    hashed = ctx.hash(admin_password)
+
+    # Update admin user password
+    cur.execute("UPDATE res_users SET password=%s WHERE login='admin'", (hashed,))
+    conn.commit()
+    print(f"Admin user password set successfully")
+    conn.close()
+except Exception as e:
+    print(f"Warning: Could not set admin password: {{e}}")
+PYTHON_SCRIPT
+
             echo "Init container finished"
             """
         ],
@@ -440,6 +474,15 @@ list_db = False
                     "secretKeyRef": {
                         "name": db_secret,
                         "key": "password"
+                    }
+                }
+            },
+            {
+                "name": "ADMIN_PASSWORD",
+                "valueFrom": {
+                    "secretKeyRef": {
+                        "name": f"{resource_name}-admin",
+                        "key": "admin-password"
                     }
                 }
             }
