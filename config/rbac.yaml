@@ -43,6 +43,16 @@ rules:
     resources: ["deployments", "statefulsets"]
     verbs: ["list", "watch", "get", "create", "update", "patch", "delete"]
   
+  # Manage Jobs (for DB init)
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["list", "watch", "get", "create", "update", "patch", "delete"]
+  
+  # Pod exec for module sync
+  - apiGroups: [""]
+    resources: ["pods", "pods/exec"]
+    verbs: ["list", "watch", "get", "create"]
+  
   # Manage RBAC
   - apiGroups: ["rbac.authorization.k8s.io"]
     resources: ["roles", "rolebindings"]
