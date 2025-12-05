@@ -251,18 +251,15 @@ spec:
                               type: string
                     cloudflare:
                       type: object
-                      description: "Cloudflare Tunnel for public access with custom domains"
+                      description: "Cloudflare Tunnel for public access with custom domains. Configure hostnames in CF Dashboard."
                       properties:
                         enabled:
                           type: boolean
                           default: false
                         tunnelSecretName:
                           type: string
-                          description: "Secret containing credentials.json from Cloudflare"
+                          description: "Secret containing TUNNEL_TOKEN from Cloudflare Dashboard"
                           default: "cloudflare-tunnel"
-                        tunnelId:
-                          type: string
-                          description: "Cloudflare Tunnel UUID"
                         replicas:
                           type: integer
                           default: 1
@@ -271,12 +268,14 @@ spec:
                           description: "Number of tunnel connector replicas for HA"
                         odoo:
                           type: object
+                          description: "Odoo public hostname (for status display only, configure in CF Dashboard)"
                           properties:
                             hostname:
                               type: string
                               description: "Public hostname for Odoo (e.g., www.example.com)"
                         bi:
                           type: object
+                          description: "Metabase public hostname (for status display only, configure in CF Dashboard)"
                           properties:
                             hostname:
                               type: string
@@ -317,8 +316,6 @@ spec:
                   properties:
                     ready:
                       type: boolean
-                    tunnelId:
-                      type: string
                 lastUpdated:
                   type: string
       subresources:

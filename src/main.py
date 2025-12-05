@@ -192,6 +192,7 @@ async def on_create(spec, name, namespace, logger, patch, meta, **kwargs):
 
         # =====================================================================
         # CLOUDFLARE TUNNEL (Public Access)
+        # Hostnames are configured in Cloudflare Dashboard, not here
         # =====================================================================
         cloudflare = networking.get('cloudflare', {})
         if cloudflare.get('enabled'):
@@ -202,23 +203,18 @@ async def on_create(spec, name, namespace, logger, patch, meta, **kwargs):
             await create_cloudflare_tunnel(
                 namespace=cluster_namespace,
                 name=name,
-                tunnel_id=cloudflare.get('tunnelId', ''),
                 tunnel_secret_name=cloudflare.get('tunnelSecretName', 'cloudflare-tunnel'),
-                odoo_hostname=cf_odoo.get('hostname'),
-                metabase_hostname=cf_bi.get('hostname') if bi_spec.get('enabled') else None,
-                metabase_enabled=bi_spec.get('enabled', False),
                 replicas=cloudflare.get('replicas', 1),
                 owner_ref=owner_ref
             )
 
-            # Set public endpoints in status
+            # Set public endpoints in status (from CRD spec for display)
             if cf_odoo.get('hostname'):
                 patch.status.setdefault('endpoints', {})['odooPublic'] = f"https://{cf_odoo.get('hostname')}"
             if cf_bi.get('hostname') and bi_spec.get('enabled'):
                 patch.status.setdefault('endpoints', {})['biPublic'] = f"https://{cf_bi.get('hostname')}"
 
             patch.status['cloudflare'] = {
-                'tunnelId': cloudflare.get('tunnelId', ''),
                 'ready': False
             }
 
@@ -352,7 +348,6 @@ async def reconcile_status(spec, name, namespace, logger, patch, status, **kwarg
 
             if status.get('cloudflare', {}).get('ready') != cf_ready:
                 patch.status['cloudflare'] = {
-                    'tunnelId': cloudflare.get('tunnelId', ''),
                     'ready': cf_ready
                 }
                 patch.status['lastUpdated'] = datetime.now(timezone.utc).isoformat()
