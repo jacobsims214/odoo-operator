@@ -26,7 +26,13 @@ def generate_password(length: int = 32) -> str:
 
 
 def build_git_clone_script(addons: List[dict]) -> str:
-    """Build a shell script to clone all addon repositories."""
+    """Build a shell script to clone all addon repositories.
+
+    Handles concurrent pod starts by:
+    1. Using a lock file to serialize git operations
+    2. Removing stale git lock files
+    3. Skipping update if repo is already present (pods don't need latest on every restart)
+    """
     script_lines = [
         "#!/bin/sh",
         "set -e",
@@ -37,6 +43,35 @@ def build_git_clone_script(addons: List[dict]) -> str:
         "ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null || true",
         "ssh-keyscan gitlab.com >> ~/.ssh/known_hosts 2>/dev/null || true",
         "ssh-keyscan bitbucket.org >> ~/.ssh/known_hosts 2>/dev/null || true",
+        "",
+        "# Lock file for serializing git operations across pods",
+        "LOCK_FILE=/mnt/addons/.clone.lock",
+        "",
+        "# Function to clean up stale git locks",
+        "cleanup_git_locks() {",
+        "  local dir=$1",
+        "  if [ -f \"$dir/.git/index.lock\" ]; then",
+        "    echo \"Removing stale git lock: $dir/.git/index.lock\"",
+        "    rm -f \"$dir/.git/index.lock\"",
+        "  fi",
+        "}",
+        "",
+        "# Wait for any other clone operations to finish (max 60 seconds)",
+        "wait_for_lock() {",
+        "  local count=0",
+        "  while [ -f \"$LOCK_FILE\" ] && [ $count -lt 60 ]; do",
+        "    echo \"Waiting for other clone operation to finish...\"",
+        "    sleep 2",
+        "    count=$((count + 2))",
+        "  done",
+        "  # Remove stale lock if it's been too long",
+        "  rm -f \"$LOCK_FILE\" 2>/dev/null || true",
+        "}",
+        "",
+        "# Acquire lock",
+        "wait_for_lock",
+        "echo $$ > \"$LOCK_FILE\"",
+        "trap 'rm -f $LOCK_FILE' EXIT",
         "",
     ]
 
@@ -49,28 +84,36 @@ def build_git_clone_script(addons: List[dict]) -> str:
 
         target_dir = f"/mnt/addons/{name}"
 
-        script_lines.append(f"echo 'Cloning {name} from {repo}...'")
+        script_lines.append(f"echo 'Processing addon: {name}'")
 
         # If private repo with deploy key
         if deploy_key_secret:
             key_path = f"/keys/{deploy_key_secret}/ssh-privatekey"
             script_lines.append(f"export GIT_SSH_COMMAND='ssh -i {key_path} -o StrictHostKeyChecking=no'")
 
-        # Clone or update
+        # Check if repo exists and is valid
         script_lines.append(f"if [ -d '{target_dir}/.git' ]; then")
-        script_lines.append("  echo 'Updating existing repo...'")
+        script_lines.append(f"  echo 'Repo {name} already exists, checking branch...'")
+        script_lines.append(f"  cleanup_git_locks {target_dir}")
         script_lines.append(f"  cd {target_dir}")
-        script_lines.append("  git fetch origin")
-        script_lines.append(f"  git checkout {branch}")
-        script_lines.append(f"  git pull origin {branch}")
+        # Just verify we're on the right branch, don't pull (avoids conflicts)
+        script_lines.append("  CURRENT_BRANCH=$(git branch --show-current 2>/dev/null || echo 'unknown')")
+        script_lines.append(f"  if [ \"$CURRENT_BRANCH\" = \"{branch}\" ]; then")
+        script_lines.append(f"    echo 'Already on branch {branch}, skipping update'")
+        script_lines.append("  else")
+        script_lines.append(f"    echo 'Switching to branch {branch}'")
+        script_lines.append(f"    git fetch origin {branch} --depth 1 || true")
+        script_lines.append(f"    git checkout {branch} || git checkout -b {branch} origin/{branch}")
+        script_lines.append("  fi")
         script_lines.append("else")
-        script_lines.append("  echo 'Fresh clone...'")
+        script_lines.append(f"  echo 'Fresh clone of {name}...'")
+        script_lines.append(f"  rm -rf {target_dir}")  # Clean up partial clones
         script_lines.append(f"  git clone --depth 1 --branch {branch} {repo} {target_dir}")
         script_lines.append("fi")
 
-        # If path specified, we'll symlink just that subdir
+        # If path specified, note it
         if path:
-            script_lines.append(f"# Addon path: {path}")
+            script_lines.append(f"# Module to install: {path}")
 
         script_lines.append("")
 
@@ -79,7 +122,7 @@ def build_git_clone_script(addons: List[dict]) -> str:
             script_lines.append("unset GIT_SSH_COMMAND")
             script_lines.append("")
 
-    script_lines.append("echo 'All addons cloned successfully!'")
+    script_lines.append("echo 'All addons processed successfully!'")
     script_lines.append("ls -la /mnt/addons/")
 
     return "\n".join(script_lines)
