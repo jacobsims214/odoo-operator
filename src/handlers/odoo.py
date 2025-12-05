@@ -405,14 +405,28 @@ list_db = False
         "image": odoo_image,
         "command": ["/bin/bash", "-c"],
         "args": [
-            # Check if database is initialized, if not run init
-            """
+            # Wait for database, then initialize if needed
+            f"""
+            echo "Waiting for database to be ready..."
+            for i in $(seq 1 60); do
+                if python3 -c "import psycopg2; psycopg2.connect(host='{db_host}', port=5432, user='odoo', password='$PASSWORD', dbname='odoo')" 2>/dev/null; then
+                    echo "Database is ready!"
+                    break
+                fi
+                echo "Waiting for database... attempt $i/60"
+                sleep 5
+            done
+
             echo "Checking if Odoo database needs initialization..."
-            odoo --database=odoo --stop-after-init -i base 2>&1 | tee /tmp/init.log
-            if grep -q "already installed" /tmp/init.log || grep -q "Modules loaded" /tmp/init.log; then
-                echo "Database already initialized or initialized successfully"
+            # Check if ir_module_module table exists
+            if python3 -c "import psycopg2; c=psycopg2.connect(host='{db_host}', port=5432, user='odoo', password='$PASSWORD', dbname='odoo'); cur=c.cursor(); cur.execute('SELECT 1 FROM ir_module_module LIMIT 1')" 2>/dev/null; then
+                echo "Database already initialized, skipping init"
+            else
+                echo "Database not initialized, running odoo -i base..."
+                odoo --database=odoo --stop-after-init -i base --without-demo=all
+                echo "Database initialization complete"
             fi
-            echo "Init container complete"
+            echo "Init container finished"
             """
         ],
         "env": [
