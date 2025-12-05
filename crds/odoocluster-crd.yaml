@@ -218,6 +218,7 @@ spec:
                   properties:
                     tailscale:
                       type: object
+                      description: "Tailscale networking (private tailnet or funnel)"
                       properties:
                         authSecretName:
                           type: string
@@ -248,6 +249,38 @@ spec:
                               default: false
                             tags:
                               type: string
+                    cloudflare:
+                      type: object
+                      description: "Cloudflare Tunnel for public access with custom domains"
+                      properties:
+                        enabled:
+                          type: boolean
+                          default: false
+                        tunnelSecretName:
+                          type: string
+                          description: "Secret containing credentials.json from Cloudflare"
+                          default: "cloudflare-tunnel"
+                        tunnelId:
+                          type: string
+                          description: "Cloudflare Tunnel UUID"
+                        replicas:
+                          type: integer
+                          default: 1
+                          minimum: 1
+                          maximum: 3
+                          description: "Number of tunnel connector replicas for HA"
+                        odoo:
+                          type: object
+                          properties:
+                            hostname:
+                              type: string
+                              description: "Public hostname for Odoo (e.g., www.example.com)"
+                        bi:
+                          type: object
+                          properties:
+                            hostname:
+                              type: string
+                              description: "Public hostname for Metabase (e.g., data.example.com)"
             status:
               type: object
               properties:
@@ -262,8 +295,16 @@ spec:
                   properties:
                     odoo:
                       type: string
+                      description: "Tailscale endpoint for Odoo"
                     bi:
                       type: string
+                      description: "Tailscale endpoint for Metabase"
+                    odooPublic:
+                      type: string
+                      description: "Public Cloudflare endpoint for Odoo"
+                    biPublic:
+                      type: string
+                      description: "Public Cloudflare endpoint for Metabase"
                 database:
                   type: object
                   properties:
@@ -271,6 +312,13 @@ spec:
                       type: string
                     ready:
                       type: boolean
+                cloudflare:
+                  type: object
+                  properties:
+                    ready:
+                      type: boolean
+                    tunnelId:
+                      type: string
                 lastUpdated:
                   type: string
       subresources:

@@ -26,6 +26,11 @@ from .module_sync import (
     check_installed_modules,
     install_modules_on_pod,
 )
+from .cloudflare import (
+    create_cloudflare_tunnel,
+    delete_cloudflare_tunnel,
+    check_cloudflare_tunnel_ready,
+)
 
 __all__ = [
     "get_cluster_labels",
@@ -55,4 +60,7 @@ __all__ = [
     "get_modules_to_install",
     "check_installed_modules",
     "install_modules_on_pod",
+    "create_cloudflare_tunnel",
+    "delete_cloudflare_tunnel",
+    "check_cloudflare_tunnel_ready",
 ]

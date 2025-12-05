@@ -11,7 +11,8 @@ This operator manages OdooCluster custom resources, creating:
 - Odoo deployment with filestore
 - Optional: Valkey (Redis) for caching
 - Optional: Metabase for BI
-- Optional: Tailscale sidecars for secure access
+- Optional: Tailscale sidecars for private access
+- Optional: Cloudflare Tunnel for public access with custom domains
 """
 
 import kopf
@@ -28,6 +29,11 @@ from handlers.db_init import (
     delete_db_init_job
 )
 from handlers.module_sync import sync_modules_for_cluster
+from handlers.cloudflare import (
+    create_cloudflare_tunnel,
+    delete_cloudflare_tunnel,
+    check_cloudflare_tunnel_ready
+)
 
 logger = logging.getLogger(__name__)
 
@@ -184,6 +190,38 @@ async def on_create(spec, name, namespace, logger, patch, meta, **kwargs):
             hostname = odoo_tailscale.get('hostname', 'odoo')
             patch.status.setdefault('endpoints', {})['odoo'] = f"https://{hostname}.tail108d23.ts.net"
 
+        # =====================================================================
+        # CLOUDFLARE TUNNEL (Public Access)
+        # =====================================================================
+        cloudflare = networking.get('cloudflare', {})
+        if cloudflare.get('enabled'):
+            logger.info(f"Creating Cloudflare Tunnel for: {name}")
+            cf_odoo = cloudflare.get('odoo', {})
+            cf_bi = cloudflare.get('bi', {})
+
+            await create_cloudflare_tunnel(
+                namespace=cluster_namespace,
+                name=name,
+                tunnel_id=cloudflare.get('tunnelId', ''),
+                tunnel_secret_name=cloudflare.get('tunnelSecretName', 'cloudflare-tunnel'),
+                odoo_hostname=cf_odoo.get('hostname'),
+                metabase_hostname=cf_bi.get('hostname') if bi_spec.get('enabled') else None,
+                metabase_enabled=bi_spec.get('enabled', False),
+                replicas=cloudflare.get('replicas', 1),
+                owner_ref=owner_ref
+            )
+
+            # Set public endpoints in status
+            if cf_odoo.get('hostname'):
+                patch.status.setdefault('endpoints', {})['odooPublic'] = f"https://{cf_odoo.get('hostname')}"
+            if cf_bi.get('hostname') and bi_spec.get('enabled'):
+                patch.status.setdefault('endpoints', {})['biPublic'] = f"https://{cf_bi.get('hostname')}"
+
+            patch.status['cloudflare'] = {
+                'tunnelId': cloudflare.get('tunnelId', ''),
+                'ready': False
+            }
+
         # Note: Phase 3 (Module Sync) runs via timer after pods are ready
 
         patch.status['phase'] = 'Initializing'
@@ -223,6 +261,11 @@ async def on_delete(spec, name, namespace, logger, **kwargs):
     try:
         # Delete in reverse order
         addons = spec.get('addons', {})
+        networking = spec.get('networking', {})
+
+        # Delete Cloudflare Tunnel
+        if networking.get('cloudflare', {}).get('enabled'):
+            await delete_cloudflare_tunnel(cluster_namespace, name)
 
         # Delete Metabase
         if addons.get('bi', {}).get('enabled'):
@@ -296,6 +339,21 @@ async def reconcile_status(spec, name, namespace, logger, patch, status, **kwarg
                 patch.status['database'] = {
                     'host': f"{name}-db-rw.{cluster_namespace}.svc.cluster.local",
                     'ready': db_ready
+                }
+                patch.status['lastUpdated'] = datetime.now(timezone.utc).isoformat()
+
+        # =====================================================================
+        # CHECK CLOUDFLARE TUNNEL READINESS
+        # =====================================================================
+        networking = spec.get('networking', {})
+        cloudflare = networking.get('cloudflare', {})
+        if cloudflare.get('enabled') and current_phase in ['Ready', 'Initializing']:
+            cf_ready = await check_cloudflare_tunnel_ready(cluster_namespace, name)
+
+            if status.get('cloudflare', {}).get('ready') != cf_ready:
+                patch.status['cloudflare'] = {
+                    'tunnelId': cloudflare.get('tunnelId', ''),
+                    'ready': cf_ready
                 }
                 patch.status['lastUpdated'] = datetime.now(timezone.utc).isoformat()
 
