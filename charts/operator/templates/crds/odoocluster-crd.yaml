@@ -50,6 +50,23 @@ spec:
                     storage:
                       type: string
                       default: "10Gi"
+                    resources:
+                      type: object
+                      properties:
+                        requests:
+                          type: object
+                          properties:
+                            cpu:
+                              x-kubernetes-int-or-string: true
+                            memory:
+                              x-kubernetes-int-or-string: true
+                        limits:
+                          type: object
+                          properties:
+                            cpu:
+                              x-kubernetes-int-or-string: true
+                            memory:
+                              x-kubernetes-int-or-string: true
                     addons:
                       type: array
                       items:
@@ -106,16 +123,16 @@ spec:
                           type: object
                           properties:
                             cpu:
-                              type: string
+                              x-kubernetes-int-or-string: true
                             memory:
-                              type: string
+                              x-kubernetes-int-or-string: true
                         limits:
                           type: object
                           properties:
                             cpu:
-                              type: string
+                              x-kubernetes-int-or-string: true
                             memory:
-                              type: string
+                              x-kubernetes-int-or-string: true
                     backup:
                       type: object
                       properties:
@@ -156,16 +173,16 @@ spec:
                               type: object
                               properties:
                                 cpu:
-                                  type: string
+                                  x-kubernetes-int-or-string: true
                                 memory:
-                                  type: string
+                                  x-kubernetes-int-or-string: true
                             limits:
                               type: object
                               properties:
                                 cpu:
-                                  type: string
+                                  x-kubernetes-int-or-string: true
                                 memory:
-                                  type: string
+                                  x-kubernetes-int-or-string: true
                     bi:
                       type: object
                       properties:
@@ -186,16 +203,16 @@ spec:
                               type: object
                               properties:
                                 cpu:
-                                  type: string
+                                  x-kubernetes-int-or-string: true
                                 memory:
-                                  type: string
+                                  x-kubernetes-int-or-string: true
                             limits:
                               type: object
                               properties:
                                 cpu:
-                                  type: string
+                                  x-kubernetes-int-or-string: true
                                 memory:
-                                  type: string
+                                  x-kubernetes-int-or-string: true
                 networking:
                   type: object
                   properties:

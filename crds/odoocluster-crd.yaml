@@ -1,7 +1,10 @@
+{{- if .Values.installCRDs | default true }}
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   name: odooclusters.odoo.simstech.cloud
+  labels:
+    {{- include "operator.labels" . | nindent 4 }}
 spec:
   group: odoo.simstech.cloud
   names:
@@ -29,7 +32,6 @@ spec:
                 - odoo
                 - database
               properties:
-                # Odoo Configuration
                 odoo:
                   type: object
                   required:
@@ -37,10 +39,10 @@ spec:
                   properties:
                     version:
                       type: string
-                      description: "Odoo version (e.g., 17.0, 16.0)"
+                      description: "Odoo version (e.g., 17, 18)"
                     image:
                       type: string
-                      description: "Custom Odoo image (defaults to odoo:<version>)"
+                      description: "Custom Odoo image"
                     replicas:
                       type: integer
                       default: 1
@@ -48,10 +50,25 @@ spec:
                     storage:
                       type: string
                       default: "10Gi"
-                      description: "Storage size for Odoo filestore"
+                    resources:
+                      type: object
+                      properties:
+                        requests:
+                          type: object
+                          properties:
+                            cpu:
+                              x-kubernetes-int-or-string: true
+                            memory:
+                              x-kubernetes-int-or-string: true
+                        limits:
+                          type: object
+                          properties:
+                            cpu:
+                              x-kubernetes-int-or-string: true
+                            memory:
+                              x-kubernetes-int-or-string: true
                     addons:
                       type: array
-                      description: "Git repositories containing Odoo addons"
                       items:
                         type: object
                         required:
@@ -60,20 +77,15 @@ spec:
                         properties:
                           name:
                             type: string
-                            description: "Name for this addon set (used as directory name)"
                           repo:
                             type: string
-                            description: "Git repository URL (SSH or HTTPS)"
                           branch:
                             type: string
                             default: "main"
-                            description: "Branch or tag to checkout"
                           path:
                             type: string
-                            description: "Subdirectory within repo containing addons (optional)"
                           deployKeySecret:
                             type: string
-                            description: "Secret name containing SSH deploy key (for private repos)"
                     resources:
                       type: object
                       properties:
@@ -95,8 +107,6 @@ spec:
                             memory:
                               type: string
                               default: "4Gi"
-                
-                # PostgreSQL Configuration (CloudNative-PG)
                 database:
                   type: object
                   properties:
@@ -106,8 +116,6 @@ spec:
                     instances:
                       type: integer
                       default: 1
-                      minimum: 1
-                      maximum: 5
                     resources:
                       type: object
                       properties:
@@ -115,20 +123,16 @@ spec:
                           type: object
                           properties:
                             cpu:
-                              type: string
-                              default: "250m"
+                              x-kubernetes-int-or-string: true
                             memory:
-                              type: string
-                              default: "512Mi"
+                              x-kubernetes-int-or-string: true
                         limits:
                           type: object
                           properties:
                             cpu:
-                              type: string
-                              default: "1"
+                              x-kubernetes-int-or-string: true
                             memory:
-                              type: string
-                              default: "2Gi"
+                              x-kubernetes-int-or-string: true
                     backup:
                       type: object
                       properties:
@@ -138,7 +142,6 @@ spec:
                         schedule:
                           type: string
                           default: "0 2 * * *"
-                          description: "Cron schedule for backups"
                         retentionPolicy:
                           type: string
                           default: "30d"
@@ -147,15 +150,10 @@ spec:
                           properties:
                             endpoint:
                               type: string
-                              description: "S3/Minio endpoint URL"
                             bucket:
                               type: string
-                              description: "S3 bucket name"
                             secretName:
                               type: string
-                              description: "Secret containing ACCESS_KEY_ID and SECRET_ACCESS_KEY"
-                
-                # Optional Add-ons
                 addons:
                   type: object
                   properties:
@@ -175,20 +173,16 @@ spec:
                               type: object
                               properties:
                                 cpu:
-                                  type: string
-                                  default: "100m"
+                                  x-kubernetes-int-or-string: true
                                 memory:
-                                  type: string
-                                  default: "128Mi"
+                                  x-kubernetes-int-or-string: true
                             limits:
                               type: object
                               properties:
                                 cpu:
-                                  type: string
-                                  default: "500m"
+                                  x-kubernetes-int-or-string: true
                                 memory:
-                                  type: string
-                                  default: "512Mi"
+                                  x-kubernetes-int-or-string: true
                     bi:
                       type: object
                       properties:
@@ -209,22 +203,16 @@ spec:
                               type: object
                               properties:
                                 cpu:
-                                  type: string
-                                  default: "500m"
+                                  x-kubernetes-int-or-string: true
                                 memory:
-                                  type: string
-                                  default: "1Gi"
+                                  x-kubernetes-int-or-string: true
                             limits:
                               type: object
                               properties:
                                 cpu:
-                                  type: string
-                                  default: "2"
+                                  x-kubernetes-int-or-string: true
                                 memory:
-                                  type: string
-                                  default: "2Gi"
-                
-                # Networking Configuration
+                                  x-kubernetes-int-or-string: true
                 networking:
                   type: object
                   properties:
@@ -234,7 +222,6 @@ spec:
                         authSecretName:
                           type: string
                           default: "tailscale-auth"
-                          description: "Secret containing TS_AUTHKEY"
                         odoo:
                           type: object
                           properties:
@@ -243,13 +230,11 @@ spec:
                               default: false
                             hostname:
                               type: string
-                              default: "odoo"
                             funnel:
                               type: boolean
                               default: true
                             tags:
                               type: string
-                              default: "tag:odoo-web"
                         bi:
                           type: object
                           properties:
@@ -258,20 +243,16 @@ spec:
                               default: false
                             hostname:
                               type: string
-                              default: "bi"
                             funnel:
                               type: boolean
                               default: false
                             tags:
                               type: string
-                              default: "tag:odoo-bi"
-            
             status:
               type: object
               properties:
                 phase:
                   type: string
-                  enum: ["Pending", "Creating", "Ready", "Error"]
                 message:
                   type: string
                 namespace:
@@ -292,7 +273,6 @@ spec:
                       type: boolean
                 lastUpdated:
                   type: string
-                  format: date-time
       subresources:
         status: {}
       additionalPrinterColumns:
@@ -302,10 +282,11 @@ spec:
         - name: Namespace
           type: string
           jsonPath: .status.namespace
-        - name: Odoo Version
+        - name: Version
           type: string
           jsonPath: .spec.odoo.version
         - name: Age
           type: date
           jsonPath: .metadata.creationTimestamp
+{{- end }}
 
