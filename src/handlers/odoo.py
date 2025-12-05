@@ -86,16 +86,19 @@ def build_git_clone_script(addons: List[dict]) -> str:
 
 
 def build_addons_path(addons: List[dict]) -> str:
-    """Build the addons_path for odoo.conf."""
+    """Build the addons_path for odoo.conf.
+
+    Always adds the repo root to addons_path.
+    The 'path' field specifies which module(s) to install, not the path.
+    Odoo will discover all modules in each addons_path directory.
+    """
     paths = ["/mnt/extra-addons"]  # Default Odoo addons
 
     for addon in addons:
         name = addon['name']
-        subpath = addon.get('path', '')
-        if subpath:
-            paths.append(f"/mnt/addons/{name}/{subpath}")
-        else:
-            paths.append(f"/mnt/addons/{name}")
+        # Always add repo root - Odoo discovers modules in addons_path directories
+        # The 'path' field is for specifying which module to auto-install (future use)
+        paths.append(f"/mnt/addons/{name}")
 
     return ",".join(paths)
 
