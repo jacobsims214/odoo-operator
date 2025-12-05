@@ -43,7 +43,7 @@ odoo:
     - name: "github_metrics_odoo_widget"
       repo: "https://github.com/jacobsims214/github_metrics_odoo_widget.git"
       branch: "main"
-      path: "module"
+      path: "widget_github_stats"
 # =============================================================================
 # Database Configuration (CloudNative-PG)
 # =============================================================================
