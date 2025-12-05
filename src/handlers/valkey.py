@@ -39,6 +39,12 @@ async def create_valkey(
     requests = res.get('requests', {})
     limits = res.get('limits', {})
 
+    # Ensure resource values are strings (Kubernetes requires string quantities)
+    def ensure_str(val, default):
+        if val is None:
+            return default
+        return str(val)
+
     resource_name = f"{name}-valkey"
 
     owner_refs = build_owner_references(owner_ref)
@@ -136,12 +142,12 @@ async def create_valkey(
                             ],
                             resources=client.V1ResourceRequirements(
                                 requests={
-                                    "cpu": requests.get('cpu', '100m'),
-                                    "memory": requests.get('memory', '128Mi')
+                                    "cpu": ensure_str(requests.get('cpu'), '100m'),
+                                    "memory": ensure_str(requests.get('memory'), '128Mi')
                                 },
                                 limits={
-                                    "cpu": limits.get('cpu', '500m'),
-                                    "memory": limits.get('memory', '512Mi')
+                                    "cpu": ensure_str(limits.get('cpu'), '500m'),
+                                    "memory": ensure_str(limits.get('memory'), '512Mi')
                                 }
                             ),
                             liveness_probe=client.V1Probe(

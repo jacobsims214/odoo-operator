@@ -57,6 +57,12 @@ async def create_metabase(
     requests = res.get('requests', {})
     limits = res.get('limits', {})
 
+    # Ensure resource values are strings (Kubernetes requires string quantities)
+    def ensure_str(val, default):
+        if val is None:
+            return default
+        return str(val)
+
     resource_name = f"{name}-metabase"
     db_secret = f"{name}-db-app"
     owner_refs = build_owner_references(owner_ref)
@@ -217,12 +223,12 @@ async def create_metabase(
             ],
             "resources": {
                 "requests": {
-                    "cpu": requests.get('cpu', '500m'),
-                    "memory": requests.get('memory', '1Gi')
+                    "cpu": ensure_str(requests.get('cpu'), '500m'),
+                    "memory": ensure_str(requests.get('memory'), '1Gi')
                 },
                 "limits": {
-                    "cpu": limits.get('cpu', '2'),
-                    "memory": limits.get('memory', '2Gi')
+                    "cpu": ensure_str(limits.get('cpu'), '2'),
+                    "memory": ensure_str(limits.get('memory'), '2Gi')
                 }
             },
             "livenessProbe": {

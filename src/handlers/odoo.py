@@ -165,6 +165,12 @@ async def create_odoo(
     limits = res.get('limits', {})
     addons = addons or []
 
+    # Ensure resource values are strings (Kubernetes requires string quantities)
+    def ensure_str(val, default):
+        if val is None:
+            return default
+        return str(val)
+
     resource_name = f"{name}-odoo"
     owner_refs = build_owner_references(owner_ref)
 
@@ -565,12 +571,12 @@ PYTHON_SCRIPT
             "volumeMounts": odoo_volume_mounts,
             "resources": {
                 "requests": {
-                    "cpu": requests.get('cpu', '500m'),
-                    "memory": requests.get('memory', '1Gi')
+                    "cpu": ensure_str(requests.get('cpu'), '500m'),
+                    "memory": ensure_str(requests.get('memory'), '1Gi')
                 },
                 "limits": {
-                    "cpu": limits.get('cpu', '2'),
-                    "memory": limits.get('memory', '4Gi')
+                    "cpu": ensure_str(limits.get('cpu'), '2'),
+                    "memory": ensure_str(limits.get('memory'), '4Gi')
                 }
             },
             "livenessProbe": {
