@@ -190,6 +190,10 @@ async def create_cloudflare_tunnel(
                                 "readOnly": True
                             }
                         ],
+                        "ports": [{
+                            "containerPort": 20241,
+                            "name": "metrics"
+                        }],
                         "resources": {
                             "requests": {
                                 "cpu": "10m",
@@ -200,19 +204,19 @@ async def create_cloudflare_tunnel(
                                 "memory": "128Mi"
                             }
                         },
-                        # cloudflared exposes metrics on 2000 but no /ready endpoint
-                        # Use exec probe to check tunnel is running
+                        # cloudflared exposes metrics on port 20241
+                        # Use TCP socket probe since container has no shell utilities
                         "livenessProbe": {
-                            "exec": {
-                                "command": ["pgrep", "-x", "cloudflared"]
+                            "tcpSocket": {
+                                "port": 20241
                             },
                             "initialDelaySeconds": 10,
                             "periodSeconds": 30,
                             "failureThreshold": 3
                         },
                         "readinessProbe": {
-                            "exec": {
-                                "command": ["pgrep", "-x", "cloudflared"]
+                            "tcpSocket": {
+                                "port": 20241
                             },
                             "initialDelaySeconds": 5,
                             "periodSeconds": 10
