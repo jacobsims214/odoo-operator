@@ -8,7 +8,7 @@
 #   helm install my-company ./charts/odoocluster -n odoo-my-company --create-namespace -f examples/production-ha.yaml
 
 # Cluster name
-name: "my-company"
+name: "simstech"
 
 # =============================================================================
 # Odoo Configuration

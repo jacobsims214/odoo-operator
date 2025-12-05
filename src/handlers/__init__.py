@@ -15,6 +15,17 @@ from .tailscale import (
     delete_tailscale_resources,
     get_tailscale_rbac,
 )
+from .db_init import (
+    create_db_init_job,
+    check_db_init_job_status,
+    delete_db_init_job,
+)
+from .module_sync import (
+    sync_modules_for_cluster,
+    get_modules_to_install,
+    check_installed_modules,
+    install_modules_on_pod,
+)
 
 __all__ = [
     "get_cluster_labels",
@@ -37,4 +48,11 @@ __all__ = [
     "create_tailscale_resources",
     "delete_tailscale_resources",
     "get_tailscale_rbac",
+    "create_db_init_job",
+    "check_db_init_job_status",
+    "delete_db_init_job",
+    "sync_modules_for_cluster",
+    "get_modules_to_install",
+    "check_installed_modules",
+    "install_modules_on_pod",
 ]
