@@ -96,18 +96,34 @@ addons:
         memory: "8Gi"    # Extra headroom for large datasets
 
 # =============================================================================
-# Networking (Tailscale) - Disabled
+# Networking
 # =============================================================================
 networking:
+  # Tailscale - Private tailnet access (disabled)
   tailscale:
     authSecretName: "tailscale-auth"
     odoo:
       enabled: false
     bi:
       enabled: false
+  
+  # Cloudflare Tunnel - Public internet access with custom domains
+  # Setup:
+  #   1. cloudflared tunnel login
+  #   2. cloudflared tunnel create simstech-odoo
+  #   3. ./scripts/create-cloudflare-tunnel-secret.sh simstech-odoo cloudflare-tunnel <tunnel-id> <creds.json>
+  #   4. Add CNAME records in Cloudflare DNS
+  cloudflare:
+    enabled: true
+    tunnelSecretName: "cloudflare-tunnel"
+    replicas: 1
+    odoo:
+      hostname: "www.simstech.cloud"
+    bi:
+      hostname: "data.simstech.cloud"
 
 # =============================================================================
-# Secrets - None needed for this example
+# Secrets
 # =============================================================================
 secrets:
   tailscale:
@@ -115,4 +131,8 @@ secrets:
   backup:
     create: false
   deployKeys: []
+  # Cloudflare tunnel secret created via script (not managed by Helm):
+  # ./scripts/create-cloudflare-tunnel-secret.sh simstech-odoo cloudflare-tunnel \
+  #   "4d33f088-65c2-405e-a699-2224dceb5863" \
+  #   ~/.cloudflared/4d33f088-65c2-405e-a699-2224dceb5863.json
 
