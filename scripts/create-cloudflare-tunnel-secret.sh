@@ -2,21 +2,23 @@
 #
 # Create Cloudflare Tunnel Secret for OdooCluster
 #
-# This script creates the Kubernetes secret required for Cloudflare Tunnel.
+# This script creates the Kubernetes secret required for Cloudflare Tunnel
+# using the CONFIG FILE approach (supports multiple hostnames per tunnel).
 #
 # Prerequisites:
-#   1. Go to Cloudflare Dashboard → Zero Trust → Networks → Tunnels
-#   2. Create a new tunnel (e.g., "simstech-odoo")
-#   3. Copy the tunnel token from the "Install connector" step
-#   4. Add Public Hostnames in the dashboard:
-#      - www.simstech.cloud → http://simstech-odoo:8069
-#      - data.simstech.cloud → http://simstech-metabase:3000
+#   1. Install cloudflared CLI: brew install cloudflared
+#   2. Login: cloudflared tunnel login
+#   3. Create tunnel: cloudflared tunnel create <tunnel-name>
+#      This creates ~/.cloudflared/<tunnel-id>.json (credentials file)
+#   4. Note the Tunnel ID (UUID) from the output
 #
 # Usage:
-#   ./create-cloudflare-tunnel-secret.sh <namespace> <secret-name> <tunnel-token>
+#   ./create-cloudflare-tunnel-secret.sh <namespace> <secret-name> <tunnel-id> <credentials-file>
 #
 # Example:
-#   ./create-cloudflare-tunnel-secret.sh simstech-odoo cloudflare-tunnel "eyJhIjoiNzM0..."
+#   ./create-cloudflare-tunnel-secret.sh simstech-odoo cloudflare-tunnel \
+#     "a1b2c3d4-e5f6-7890-abcd-ef1234567890" \
+#     ~/.cloudflared/a1b2c3d4-e5f6-7890-abcd-ef1234567890.json
 #
 
 set -e
@@ -30,35 +32,51 @@ NC='\033[0m' # No Color
 
 print_usage() {
     echo "Usage:"
-    echo "  $0 <namespace> <secret-name> <tunnel-token>"
+    echo "  $0 <namespace> <secret-name> <tunnel-id> <credentials-file>"
     echo ""
     echo "Example:"
-    echo "  $0 simstech-odoo cloudflare-tunnel 'eyJhIjoiNzM0...'"
+    echo "  $0 simstech-odoo cloudflare-tunnel \\"
+    echo "    'a1b2c3d4-e5f6-7890-abcd-ef1234567890' \\"
+    echo "    ~/.cloudflared/a1b2c3d4-e5f6-7890-abcd-ef1234567890.json"
     echo ""
-    echo "To get your tunnel token:"
-    echo "  1. Go to Cloudflare Dashboard → Zero Trust → Networks → Tunnels"
-    echo "  2. Create a new tunnel or select existing"
-    echo "  3. In 'Install connector' step, copy the token (starts with 'eyJ...')"
+    echo "To create a tunnel:"
+    echo "  1. Install cloudflared: brew install cloudflared"
+    echo "  2. Login: cloudflared tunnel login"
+    echo "  3. Create: cloudflared tunnel create my-tunnel"
+    echo "  4. Note the Tunnel ID and credentials file path"
 }
 
-if [ "$#" -ne 3 ]; then
-    echo -e "${RED}Error: Expected 3 arguments${NC}"
+if [ "$#" -ne 4 ]; then
+    echo -e "${RED}Error: Expected 4 arguments${NC}"
     print_usage
     exit 1
 fi
 
 NAMESPACE=$1
 SECRET_NAME=$2
-TUNNEL_TOKEN=$3
+TUNNEL_ID=$3
+CREDENTIALS_FILE=$4
 
-# Validate token looks correct
-if [[ ! "$TUNNEL_TOKEN" =~ ^eyJ ]]; then
-    echo -e "${YELLOW}Warning: Token doesn't start with 'eyJ' - make sure you copied the full token${NC}"
+# Validate credentials file exists
+if [ ! -f "$CREDENTIALS_FILE" ]; then
+    echo -e "${RED}Error: Credentials file not found: $CREDENTIALS_FILE${NC}"
+    echo ""
+    echo "Create a tunnel first:"
+    echo "  cloudflared tunnel login"
+    echo "  cloudflared tunnel create my-tunnel"
+    exit 1
+fi
+
+# Validate tunnel ID format (UUID)
+if [[ ! "$TUNNEL_ID" =~ ^[a-f0-9-]{36}$ ]]; then
+    echo -e "${YELLOW}Warning: Tunnel ID doesn't look like a UUID: $TUNNEL_ID${NC}"
 fi
 
 echo -e "${BLUE}Creating Cloudflare Tunnel secret...${NC}"
 echo "  Namespace: $NAMESPACE"
 echo "  Secret name: $SECRET_NAME"
+echo "  Tunnel ID: $TUNNEL_ID"
+echo "  Credentials: $CREDENTIALS_FILE"
 
 # Ensure namespace exists
 if ! kubectl get namespace "$NAMESPACE" &>/dev/null; then
@@ -72,34 +90,29 @@ if kubectl get secret "$SECRET_NAME" -n "$NAMESPACE" &>/dev/null; then
     kubectl delete secret "$SECRET_NAME" -n "$NAMESPACE"
 fi
 
-# Create secret with tunnel token
+# Create secret with credentials.json and TUNNEL_ID
 kubectl create secret generic "$SECRET_NAME" \
     --namespace="$NAMESPACE" \
-    --from-literal=TUNNEL_TOKEN="$TUNNEL_TOKEN"
+    --from-file=credentials.json="$CREDENTIALS_FILE" \
+    --from-literal=TUNNEL_ID="$TUNNEL_ID"
 
 echo ""
 echo -e "${GREEN}✓ Secret created successfully!${NC}"
 echo ""
 echo -e "${BLUE}=== Next Steps ===${NC}"
 echo ""
-echo "1. Configure Public Hostnames in Cloudflare Dashboard:"
-echo "   Zero Trust → Networks → Tunnels → Your Tunnel → Public Hostname"
-echo ""
-echo "   For Odoo:"
-echo "   ┌─────────────────────────────────────────────┐"
-echo "   │ Subdomain: www (or @)                       │"
-echo "   │ Domain: simstech.cloud                      │"
-echo "   │ Service Type: HTTP                          │"
-echo "   │ URL: ${SECRET_NAME%-tunnel}-odoo:8069              │"
-echo "   └─────────────────────────────────────────────┘"
-echo ""
-echo "   For Metabase:"
-echo "   ┌─────────────────────────────────────────────┐"
-echo "   │ Subdomain: data                             │"
-echo "   │ Domain: simstech.cloud                      │"
-echo "   │ Service Type: HTTP                          │"
-echo "   │ URL: ${SECRET_NAME%-tunnel}-metabase:3000          │"
-echo "   └─────────────────────────────────────────────┘"
+echo "1. Add DNS CNAME records in Cloudflare Dashboard:"
+echo "   ┌─────────────────────────────────────────────────────────────┐"
+echo "   │ Type: CNAME                                                 │"
+echo "   │ Name: www                                                   │"
+echo "   │ Target: ${TUNNEL_ID}.cfargotunnel.com                       │"
+echo "   │ Proxied: Yes (orange cloud)                                 │"
+echo "   ├─────────────────────────────────────────────────────────────┤"
+echo "   │ Type: CNAME                                                 │"
+echo "   │ Name: data                                                  │"
+echo "   │ Target: ${TUNNEL_ID}.cfargotunnel.com                       │"
+echo "   │ Proxied: Yes (orange cloud)                                 │"
+echo "   └─────────────────────────────────────────────────────────────┘"
 echo ""
 echo "2. Add to your OdooCluster spec:"
 echo ""
@@ -108,8 +121,8 @@ echo "     cloudflare:"
 echo "       enabled: true"
 echo "       tunnelSecretName: \"$SECRET_NAME\""
 echo "       odoo:"
-echo "         hostname: \"www.simstech.cloud\""
+echo "         hostname: \"www.yourdomain.com\""
 echo "       bi:"
-echo "         hostname: \"data.simstech.cloud\""
+echo "         hostname: \"data.yourdomain.com\""
 echo ""
 echo -e "${GREEN}Done!${NC}"

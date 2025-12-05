@@ -192,7 +192,7 @@ async def on_create(spec, name, namespace, logger, patch, meta, **kwargs):
 
         # =====================================================================
         # CLOUDFLARE TUNNEL (Public Access)
-        # Hostnames are configured in Cloudflare Dashboard, not here
+        # Uses config file approach to support multiple hostnames
         # =====================================================================
         cloudflare = networking.get('cloudflare', {})
         if cloudflare.get('enabled'):
@@ -204,6 +204,9 @@ async def on_create(spec, name, namespace, logger, patch, meta, **kwargs):
                 namespace=cluster_namespace,
                 name=name,
                 tunnel_secret_name=cloudflare.get('tunnelSecretName', 'cloudflare-tunnel'),
+                odoo_hostname=cf_odoo.get('hostname'),
+                metabase_hostname=cf_bi.get('hostname'),
+                metabase_enabled=bi_spec.get('enabled', False),
                 replicas=cloudflare.get('replicas', 1),
                 owner_ref=owner_ref
             )
