@@ -40,7 +40,10 @@ odoo:
       repo: "https://github.com/OCA/web.git"
       branch: "19.0"
       path: "web_responsive"  # Only install web_responsive from this repo
-
+    - name: "github_metrics_odoo_widget"
+      repo: "https://github.com/jacobsims214/github_metrics_odoo_widget.git"
+      branch: "main"
+      path: "module"
 # =============================================================================
 # Database Configuration (CloudNative-PG)
 # =============================================================================
