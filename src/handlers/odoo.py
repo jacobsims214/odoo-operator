@@ -253,7 +253,7 @@ async def create_odoo(
             }
         ),
         spec=client.V1PersistentVolumeClaimSpec(
-            access_modes=["ReadWriteOnce"],
+            access_modes=["ReadWriteMany"],  # RWX for multi-replica support with NFS
             resources=client.V1VolumeResourceRequirements(
                 requests={"storage": storage}
             )
@@ -308,7 +308,7 @@ async def create_odoo(
                 }
             ),
             spec=client.V1PersistentVolumeClaimSpec(
-                access_modes=["ReadWriteOnce"],
+                access_modes=["ReadWriteMany"],  # RWX for multi-replica support with NFS
                 resources=client.V1VolumeResourceRequirements(
                     requests={"storage": "5Gi"}
                 )
