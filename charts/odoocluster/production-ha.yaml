@@ -1,0 +1,118 @@
+# Production HA OdooCluster Example
+# - 3x PostgreSQL nodes (HA cluster)
+# - 3x Odoo replicas
+# - Metabase for reporting dashboards
+# - OCA web_responsive module for mobile-friendly UI
+#
+# Deploy with:
+#   helm install my-company ./charts/odoocluster -n odoo-my-company --create-namespace -f examples/production-ha.yaml
+
+# Cluster name
+name: "my-company"
+
+# =============================================================================
+# Odoo Configuration
+# =============================================================================
+odoo:
+  # Odoo 19 for latest features
+  version: "19"
+  
+  # 3 replicas for high availability
+  replicas: 3
+  
+  # Storage for Odoo filestore (shared across replicas via RWX or replicated)
+  storage: "50Gi"
+  
+  # Resource limits for production workload
+  resources:
+    requests:
+      cpu: "1"           # Request 1 CPU per replica
+      memory: "4Gi"      # Request 4GB RAM per replica
+    limits:
+      cpu: "4"           # Limit to 4 CPUs per replica
+      memory: "16Gi"     # Limit to 16GB RAM per replica
+  
+  # Public OCA modules
+  addons:
+    # OCA Web Responsive - Mobile-friendly UI
+    # https://github.com/OCA/web/tree/19.0/web_responsive
+    - name: "oca-web"
+      repo: "https://github.com/OCA/web.git"
+      branch: "19.0"
+      path: "web_responsive"  # Only install web_responsive from this repo
+
+# =============================================================================
+# Database Configuration (CloudNative-PG)
+# =============================================================================
+database:
+  # Storage for PostgreSQL data
+  storage: "100Gi"
+  
+  # 3 instances for high availability (1 primary + 2 replicas)
+  instances: 3
+  
+  # Resource limits for database nodes
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "2Gi"
+    limits:
+      cpu: "2"
+      memory: "8Gi"
+  
+  # Backup disabled for this example
+  backup:
+    enabled: false
+
+# =============================================================================
+# Optional Add-ons
+# =============================================================================
+addons:
+  # Valkey (Redis) for session caching - recommended for multi-replica Odoo
+  valkey:
+    enabled: true
+    storage: "2Gi"
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "256Mi"
+      limits:
+        cpu: "500m"
+        memory: "1Gi"
+  
+  # Metabase BI for reporting dashboards
+  # NOTE: Metabase replicas not yet supported in operator (hardcoded to 1)
+  # To enable multiple replicas, update the operator code
+  bi:
+    enabled: true
+    tool: "metabase"
+    storage: "10Gi"
+    resources:
+      requests:
+        cpu: "1"         # Metabase needs decent CPU for report generation
+        memory: "2Gi"    # 2GB minimum for smooth dashboard operation
+      limits:
+        cpu: "4"         # Allow burst for complex queries
+        memory: "8Gi"    # Extra headroom for large datasets
+
+# =============================================================================
+# Networking (Tailscale) - Disabled
+# =============================================================================
+networking:
+  tailscale:
+    authSecretName: "tailscale-auth"
+    odoo:
+      enabled: false
+    bi:
+      enabled: false
+
+# =============================================================================
+# Secrets - None needed for this example
+# =============================================================================
+secrets:
+  tailscale:
+    create: false
+  backup:
+    create: false
+  deployKeys: []
+
