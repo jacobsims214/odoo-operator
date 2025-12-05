@@ -200,22 +200,22 @@ async def create_cloudflare_tunnel(
                                 "memory": "128Mi"
                             }
                         },
+                        # cloudflared exposes metrics on 2000 but no /ready endpoint
+                        # Use exec probe to check tunnel is running
                         "livenessProbe": {
-                            "httpGet": {
-                                "path": "/ready",
-                                "port": 2000
+                            "exec": {
+                                "command": ["pgrep", "-x", "cloudflared"]
                             },
                             "initialDelaySeconds": 10,
-                            "periodSeconds": 10,
+                            "periodSeconds": 30,
                             "failureThreshold": 3
                         },
                         "readinessProbe": {
-                            "httpGet": {
-                                "path": "/ready",
-                                "port": 2000
+                            "exec": {
+                                "command": ["pgrep", "-x", "cloudflared"]
                             },
                             "initialDelaySeconds": 5,
-                            "periodSeconds": 5
+                            "periodSeconds": 10
                         }
                     }],
                     "volumes": [
