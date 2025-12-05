@@ -406,6 +406,7 @@ list_db = False
         "command": ["/bin/bash", "-c"],
         "args": [
             # Wait for database, then initialize if needed
+            # Pass all DB params via command line to avoid config file issues
             f"""
             echo "Waiting for database to be ready..."
             for i in $(seq 1 60); do
@@ -423,7 +424,8 @@ list_db = False
                 echo "Database already initialized, skipping init"
             else
                 echo "Database not initialized, running odoo -i base..."
-                odoo --database=odoo --stop-after-init -i base --without-demo=all
+                # Pass all DB connection params via command line (not config file)
+                odoo --database=odoo --db_host={db_host} --db_port=5432 --db_user=odoo --db_password="$PASSWORD" --stop-after-init --init=base --without-demo=True --no-http
                 echo "Database initialization complete"
             fi
             echo "Init container finished"
@@ -443,8 +445,7 @@ list_db = False
             }
         ],
         "volumeMounts": [
-            {"name": "filestore", "mountPath": "/var/lib/odoo"},
-            {"name": "config", "mountPath": "/etc/odoo/odoo.conf", "subPath": "odoo.conf"}
+            {"name": "filestore", "mountPath": "/var/lib/odoo"}
         ]
     })
 
