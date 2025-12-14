@@ -40,10 +40,19 @@ odoo:
       repo: "https://github.com/OCA/web.git"
       branch: "19.0"
       path: "web_responsive"  # Only install web_responsive from this repo
+    
+    # GitHub Metrics Widget
     - name: "github_metrics_odoo_widget"
       repo: "https://github.com/jacobsims214/github_metrics_odoo_widget.git"
       branch: "main"
       path: "widget_github_stats"
+    
+    # Simstech Website Theme - Portfolio site with custom snippets & SEO
+    # https://github.com/jacobsims214/simstech_webstie
+    - name: "simstech_website"
+      repo: "https://github.com/jacobsims214/simstech_webstie.git"
+      branch: "main"
+      path: "simstech_website"
 # =============================================================================
 # Database Configuration (CloudNative-PG)
 # =============================================================================
