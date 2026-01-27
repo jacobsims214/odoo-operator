@@ -113,6 +113,8 @@ def build_restore_script(
     clone_script = build_clone_script(addons) if addons else ""
 
     script = f'''
+set -e  # Exit on error
+
 echo "=== Odoo Database RESTORE Job ==="
 echo "Restoring from S3 backup..."
 
@@ -120,11 +122,17 @@ echo "Restoring from S3 backup..."
 
 # Install AWS CLI for S3 access
 echo "Installing AWS CLI..."
-pip install awscli --quiet --break-system-packages || pip install awscli --quiet
+pip install awscli --quiet --break-system-packages --user || pip install awscli --quiet --user
+
+# Add pip user bin to PATH
+export PATH="$HOME/.local/bin:$PATH"
 
 # Configure AWS credentials from environment
 export AWS_ACCESS_KEY_ID=$S3_ACCESS_KEY_ID
 export AWS_SECRET_ACCESS_KEY=$S3_SECRET_ACCESS_KEY
+
+# Verify aws is available
+which aws || (echo "ERROR: aws command not found after install" && exit 1)
 
 echo "Waiting for database to be ready..."
 for i in $(seq 1 120); do
@@ -153,16 +161,17 @@ else
     aws s3 cp s3://{bucket}/{database_key} /tmp/database_backup --endpoint-url={endpoint}
 
     echo "=== Restoring PostgreSQL database ==="
-    # Drop and recreate the odoo database
-    PGPASSWORD=$DB_PASSWORD psql -h {db_host} -U odoo -d postgres -c "DROP DATABASE IF EXISTS odoo;"
-    PGPASSWORD=$DB_PASSWORD psql -h {db_host} -U odoo -d postgres -c "CREATE DATABASE odoo OWNER odoo;"
+    # The odoo database already exists (created by CNPG bootstrap)
+    # Just restore the data into it
 
-    # Restore based on file type
-    if file /tmp/database_backup | grep -q "PostgreSQL custom database dump"; then
-        echo "Restoring from custom dump format..."
-        PGPASSWORD=$DB_PASSWORD pg_restore -h {db_host} -U odoo -d odoo --no-owner --no-acl /tmp/database_backup || true
+    # Detect backup format and restore
+    if head -c 5 /tmp/database_backup | grep -q "PGDMP"; then
+        echo "Detected PostgreSQL custom dump format..."
+        PGPASSWORD=$DB_PASSWORD pg_restore -h {db_host} -U odoo -d odoo --no-owner --no-acl --clean --if-exists /tmp/database_backup 2>&1 || echo "Some pg_restore errors are normal (pre-existing objects)"
     else
-        echo "Restoring from SQL dump..."
+        echo "Detected SQL dump format..."
+        # For SQL dumps, we may need to clean first
+        PGPASSWORD=$DB_PASSWORD psql -h {db_host} -U odoo -d odoo -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;" || true
         PGPASSWORD=$DB_PASSWORD psql -h {db_host} -U odoo -d odoo < /tmp/database_backup
     fi
 
