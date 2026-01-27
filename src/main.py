@@ -147,6 +147,7 @@ async def on_create(spec, name, namespace, logger, patch, meta, **kwargs):
         version = odoo_spec.get('version', '17.0')
         odoo_image = odoo_spec.get('image') or f"odoo:{version}"
         odoo_addons = odoo_spec.get('addons', [])
+        db_restore = db_spec.get('restore')
 
         await create_db_init_job(
             namespace=cluster_namespace,
@@ -157,6 +158,7 @@ async def on_create(spec, name, namespace, logger, patch, meta, **kwargs):
             admin_secret_name=f"{name}-odoo-admin",
             addons=odoo_addons,
             storage_class_name=odoo_spec.get('storageClassName'),
+            restore=db_restore,
             owner_ref=owner_ref
         )
 

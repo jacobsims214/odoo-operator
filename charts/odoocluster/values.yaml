@@ -46,22 +46,31 @@ odoo:
       cpu: "4"
       memory: "16Gi"
   
-  # OCA modules for production
+  # Addon modules - cloned before restore/init
   addons:
+    # Odoo Enterprise (private fork)
+    # Requires deploy key: kubectl create secret generic odoo-enterprise-deploy-key \
+    #   --from-file=ssh-privatekey=./enterprise-deploy-key -n <namespace>
+    - name: "enterprise"
+      repo: "git@github.com:Lifestyle-Aviation-Systems/enterprise.git"
+      branch: "19.0"
+      deployKeySecret: "odoo-enterprise-deploy-key"
+    
     # OCA Web Responsive - Better mobile UI
     - name: "oca-web"
       repo: "https://github.com/OCA/web.git"
       branch: "19.0"
       path: "web_responsive"
-      install: true  # Auto-install this module
+      install: false  # Set true for fresh install, false when restoring
+    
     # OCA Session DB - Stores sessions in PostgreSQL for multi-replica support
-    # This is REQUIRED for multi-replica Odoo - sessions are shared via the database
+    # REQUIRED for multi-replica Odoo - install after restore via Apps menu
     # https://github.com/OCA/server-tools/tree/19.0/session_db
     - name: "oca-server-tools"
       repo: "https://github.com/OCA/server-tools.git"
       branch: "19.0"
       path: "session_db"
-      install: true  # Auto-install this module
+      install: false  # Install manually after restore (new module)
 
 # =============================================================================
 # Database Configuration (CloudNative-PG)
@@ -99,6 +108,26 @@ database:
       # Secret containing ACCESS_KEY_ID and SECRET_ACCESS_KEY
       # Create with: kubectl create secret generic backup-s3-creds \
       #   --from-literal=ACCESS_KEY_ID=xxx --from-literal=SECRET_ACCESS_KEY=xxx
+      secretName: "backup-s3-creds"
+
+  # Restore from existing backup (runs ONCE, then skips normal db init)
+  # Use this when migrating from Odoo.sh or another Odoo instance
+  # After successful restore, set enabled: false and redeploy
+  restore:
+    enabled: true  # Enable for initial migration from Odoo.sh
+    s3:
+      # S3 endpoint URL - leave empty for default AWS S3
+      endpoint: "https://s3.amazonaws.com"
+      # S3 bucket - same bucket used for backups
+      bucket: ""  # Set via: --set database.restore.s3.bucket=your-bucket
+      # S3 key for PostgreSQL dump (.dump or .sql)
+      # Odoo.sh exports as SQL dump
+      databaseKey: "restore/dump.sql"
+      # S3 key for filestore - can be:
+      #   - Directory path: "restore/filestore" (uses aws s3 sync)
+      #   - Tarball: "restore/filestore.tar.gz" (downloads and extracts)
+      filestoreKey: "restore/filestore"
+      # Secret with ACCESS_KEY_ID and SECRET_ACCESS_KEY (reuse backup secret)
       secretName: "backup-s3-creds"
 
 # =============================================================================

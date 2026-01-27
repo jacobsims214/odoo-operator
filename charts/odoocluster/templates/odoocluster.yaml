@@ -45,6 +45,18 @@ spec:
         bucket: {{ .Values.database.backup.s3.bucket | quote }}
         secretName: {{ .Values.database.backup.s3.secretName | quote }}
     {{- end }}
+    {{- if .Values.database.restore.enabled }}
+    restore:
+      enabled: true
+      s3:
+        endpoint: {{ .Values.database.restore.s3.endpoint | quote }}
+        bucket: {{ .Values.database.restore.s3.bucket | quote }}
+        databaseKey: {{ .Values.database.restore.s3.databaseKey | quote }}
+        {{- if .Values.database.restore.s3.filestoreKey }}
+        filestoreKey: {{ .Values.database.restore.s3.filestoreKey | quote }}
+        {{- end }}
+        secretName: {{ .Values.database.restore.s3.secretName | quote }}
+    {{- end }}
   
   {{- if or .Values.addons.valkey.enabled .Values.addons.bi.enabled }}
   addons:

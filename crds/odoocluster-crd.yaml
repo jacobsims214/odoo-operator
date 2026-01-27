@@ -154,6 +154,33 @@ spec:
                               type: string
                             secretName:
                               type: string
+                    restore:
+                      type: object
+                      description: "Restore from an existing backup (runs once, skips db init)"
+                      properties:
+                        enabled:
+                          type: boolean
+                          default: false
+                        s3:
+                          type: object
+                          description: "S3 location of backup files"
+                          properties:
+                            endpoint:
+                              type: string
+                              description: "S3 endpoint URL (e.g., https://s3.amazonaws.com)"
+                            bucket:
+                              type: string
+                              description: "S3 bucket name"
+                            databaseKey:
+                              type: string
+                              description: "S3 key for PostgreSQL dump file (.dump or .sql)"
+                            filestoreKey:
+                              type: string
+                              description: "S3 key for filestore archive (.tar.gz)"
+                            secretName:
+                              type: string
+                              description: "Secret with ACCESS_KEY_ID and SECRET_ACCESS_KEY"
+                              default: "backup-s3-creds"
                 addons:
                   type: object
                   properties:
