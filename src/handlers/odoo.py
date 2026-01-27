@@ -94,7 +94,7 @@ def build_git_clone_script(addons: List[dict]) -> str:
             key_path = f"/keys/{deploy_key_secret}/ssh-privatekey"
             script_lines.append(f"export GIT_SSH_COMMAND='ssh -i {key_path} -o StrictHostKeyChecking=no'")
 
-        # Check if repo exists and is valid
+        # Check if repo exists and is a valid git repo
         script_lines.append(f"if [ -d '{target_dir}/.git' ]; then")
         script_lines.append(f"  echo 'Repo {name} already exists, checking branch...'")
         script_lines.append(f"  cleanup_git_locks {target_dir}")
@@ -108,6 +108,10 @@ def build_git_clone_script(addons: List[dict]) -> str:
         script_lines.append(f"    git fetch origin {branch} --depth 1 || true")
         script_lines.append(f"    git checkout {branch} || git checkout -b {branch} origin/{branch}")
         script_lines.append("  fi")
+        script_lines.append(f"elif [ -d '{target_dir}' ]; then")
+        script_lines.append(f"  echo 'Directory {name} exists but is not a git repo, removing and cloning fresh...'")
+        script_lines.append(f"  rm -rf {target_dir}")
+        script_lines.append(f"  git clone --depth 1 --branch {branch} {repo} {target_dir}")
         script_lines.append("else")
         script_lines.append(f"  echo 'Fresh clone of {name}...'")
         script_lines.append(f"  rm -rf {target_dir}")  # Clean up partial clones

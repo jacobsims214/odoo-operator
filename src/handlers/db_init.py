@@ -120,7 +120,7 @@ echo "Restoring from S3 backup..."
 
 # Install AWS CLI for S3 access
 echo "Installing AWS CLI..."
-pip install awscli --quiet
+pip install awscli --quiet --break-system-packages || pip install awscli --quiet
 
 # Configure AWS credentials from environment
 export AWS_ACCESS_KEY_ID=$S3_ACCESS_KEY_ID
