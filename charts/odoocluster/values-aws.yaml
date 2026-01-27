@@ -149,7 +149,7 @@ networking:
       # SSL redirect: redirect HTTP to HTTPS
       alb.ingress.kubernetes.io/ssl-redirect: "443"
       # ACM Certificate ARN - SET THIS VALUE
-      # alb.ingress.kubernetes.io/certificate-arn: "arn:aws:acm:REGION:ACCOUNT:certificate/CERT-ID"
+      alb.ingress.kubernetes.io/certificate-arn: "arn:aws:acm:REGION:ACCOUNT:certificate/CERT-ID"
       # Health check settings
       alb.ingress.kubernetes.io/healthcheck-path: /web/health
       alb.ingress.kubernetes.io/healthcheck-interval-seconds: "30"
