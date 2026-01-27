@@ -112,7 +112,7 @@ def build_git_clone_script(addons: List[dict]) -> str:
         script_lines.append("    fi")
         script_lines.append("  else")
         script_lines.append(f"    echo 'Repo {name} exists but is incomplete or corrupted, re-cloning...'")
-        script_lines.append(f"    cd /mnt/addons")
+        script_lines.append("    cd /mnt/addons")
         script_lines.append(f"    rm -rf {target_dir}")
         script_lines.append(f"    git clone --depth 1 --branch {branch} {repo} {target_dir}")
         script_lines.append("  fi")
