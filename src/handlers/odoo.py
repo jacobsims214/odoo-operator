@@ -59,16 +59,21 @@ def build_git_clone_script(addons: List[dict]) -> str:
         "  fi",
         "}",
         "",
-        "# Wait for any other clone operations to finish (max 60 seconds)",
+        "# Wait for any other clone operations to finish (max 15 minutes)",
+        "# The enterprise repo is large and can take 5+ minutes to clone",
         "wait_for_lock() {",
         "  local count=0",
-        "  while [ -f \"$LOCK_FILE\" ] && [ $count -lt 60 ]; do",
-        "    echo \"Waiting for other clone operation to finish...\"",
-        "    sleep 2",
-        "    count=$((count + 2))",
+        "  local max_wait=900",  # 15 minutes
+        "  while [ -f \"$LOCK_FILE\" ] && [ $count -lt $max_wait ]; do",
+        "    echo \"Waiting for other clone operation to finish... ($count/$max_wait seconds)\"",
+        "    sleep 5",
+        "    count=$((count + 5))",
         "  done",
-        "  # Remove stale lock if it's been too long",
-        "  rm -f \"$LOCK_FILE\" 2>/dev/null || true",
+        "  if [ -f \"$LOCK_FILE\" ]; then",
+        "    echo \"Lock still held after $max_wait seconds, checking if stale...\"",
+        "    # Only remove if lock file is older than 20 minutes (truly stale)",
+        "    find \"$LOCK_FILE\" -mmin +20 -delete 2>/dev/null || true",
+        "  fi",
         "}",
         "",
         "# Acquire lock",
@@ -95,9 +100,10 @@ def build_git_clone_script(addons: List[dict]) -> str:
             script_lines.append(f"export GIT_SSH_COMMAND='ssh -i {key_path} -o StrictHostKeyChecking=no'")
 
         # Check if repo exists and clone is TRULY complete
-        # git status isn't enough - it returns success during checkout
-        # We check for a .clone_complete marker file that we create after successful clone
+        # We use a .clone_complete marker file created after successful clone
         script_lines.append(f"CLONE_MARKER='{target_dir}/.clone_complete'")
+        script_lines.append("")
+        script_lines.append("# If marker exists, clone is complete - just verify branch")
         script_lines.append("if [ -f \"$CLONE_MARKER\" ]; then")
         script_lines.append(f"  echo 'Repo {name} already cloned (marker exists), checking branch...'")
         script_lines.append(f"  cd {target_dir}")
@@ -110,15 +116,31 @@ def build_git_clone_script(addons: List[dict]) -> str:
         script_lines.append(f"    git fetch origin {branch} --depth 1 || true")
         script_lines.append(f"    git checkout {branch} || git checkout -b {branch} origin/{branch}")
         script_lines.append("  fi")
-        script_lines.append(f"elif [ -d '{target_dir}' ]; then")
-        script_lines.append(f"  echo 'Directory {name} exists but clone incomplete (no marker), removing and cloning fresh...'")
-        script_lines.append(f"  rm -rf {target_dir}")
-        script_lines.append(f"  git clone --depth 1 --branch {branch} {repo} {target_dir}")
-        script_lines.append(f"  touch {target_dir}/.clone_complete")
         script_lines.append("else")
-        script_lines.append(f"  echo 'Fresh clone of {name}...'")
-        script_lines.append(f"  git clone --depth 1 --branch {branch} {repo} {target_dir}")
-        script_lines.append(f"  touch {target_dir}/.clone_complete")
+        script_lines.append("  # No marker - either clone in progress or needs fresh clone")
+        script_lines.append(f"  if [ -d '{target_dir}/.git' ]; then")
+        script_lines.append(f"    echo 'Clone of {name} appears in progress (no marker but .git exists), waiting...'")
+        script_lines.append("    # Wait for the marker to appear (another pod is cloning)")
+        script_lines.append("    wait_count=0")
+        script_lines.append("    while [ ! -f \"$CLONE_MARKER\" ] && [ $wait_count -lt 900 ]; do")
+        script_lines.append(f"      echo 'Waiting for {name} clone to complete... ($wait_count/900s)'")
+        script_lines.append("      sleep 10")
+        script_lines.append("      wait_count=$((wait_count + 10))")
+        script_lines.append("    done")
+        script_lines.append("    if [ -f \"$CLONE_MARKER\" ]; then")
+        script_lines.append(f"      echo '{name} clone completed by another pod'")
+        script_lines.append("    else")
+        script_lines.append(f"      echo 'ERROR: Timed out waiting for {name} clone. Check other pod logs.'")
+        script_lines.append("      exit 1")
+        script_lines.append("    fi")
+        script_lines.append("  else")
+        script_lines.append("    # No .git directory - we need to do fresh clone")
+        script_lines.append(f"    echo 'Fresh clone of {name}...'")
+        script_lines.append(f"    rm -rf {target_dir} 2>/dev/null || true")
+        script_lines.append(f"    git clone --depth 1 --branch {branch} {repo} {target_dir}")
+        script_lines.append(f"    touch {target_dir}/.clone_complete")
+        script_lines.append(f"    echo '{name} clone complete, marker created'")
+        script_lines.append("  fi")
         script_lines.append("fi")
 
         # If path specified, note it
