@@ -136,30 +136,27 @@ networking:
     enabled: true
     # AWS Load Balancer Controller ingress class
     className: "alb"
+
+    # ACM Certificate ARN - easy to set via ArgoCD/--set
+    # This gets injected into the ALB annotations automatically
+    certificateArn: ""  # e.g., arn:aws:acm:us-east-1:123456789:certificate/xxxxx
+
+    # ALB group name - ingresses with same group share one ALB
+    groupName: "odoo-cluster"
     
-    # Global ALB annotations
+    # Global ALB annotations (pre-configured for AWS)
     # These apply to both Odoo and Metabase ingresses
     annotations:
-      # ALB scheme: internet-facing (public) or internal
       alb.ingress.kubernetes.io/scheme: internet-facing
-      # ALB target type: ip (recommended for EKS)
       alb.ingress.kubernetes.io/target-type: ip
-      # Listen on HTTPS (port 443)
       alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
-      # SSL redirect: redirect HTTP to HTTPS
       alb.ingress.kubernetes.io/ssl-redirect: "443"
-      # ACM Certificate ARN - SET THIS VALUE
-      alb.ingress.kubernetes.io/certificate-arn: "arn:aws:acm:REGION:ACCOUNT:certificate/CERT-ID"
-      # Health check settings
       alb.ingress.kubernetes.io/healthcheck-path: /web/health
       alb.ingress.kubernetes.io/healthcheck-interval-seconds: "30"
       alb.ingress.kubernetes.io/healthcheck-timeout-seconds: "5"
       alb.ingress.kubernetes.io/healthy-threshold-count: "2"
       alb.ingress.kubernetes.io/unhealthy-threshold-count: "3"
-      # Idle timeout (Odoo can have long-running requests)
       alb.ingress.kubernetes.io/load-balancer-attributes: idle_timeout.timeout_seconds=300
-      # Group name - ingresses with same group share one ALB
-      alb.ingress.kubernetes.io/group.name: odoo-cluster
     
     # TLS - handled by ACM via annotations
     tls:

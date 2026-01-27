@@ -2,10 +2,7 @@
 {{- $clusterName := include "odoocluster.name" . -}}
 {{- $namespace := .Release.Namespace -}}
 
-{{/*
-Odoo Ingress - routes to the Odoo service created by the operator
-The operator creates a ClusterIP service named "{name}-odoo" on port 8069
-*/}}
+{{/* Odoo Ingress */}}
 {{- if .Values.networking.ingress.odoo.enabled }}
 ---
 apiVersion: networking.k8s.io/v1
@@ -17,10 +14,17 @@ metadata:
     {{- include "odoocluster.labels" . | nindent 4 }}
     odoo.simstech.cloud/component: odoo
   annotations:
-    {{- /* Merge global and component-specific annotations */ -}}
-    {{- $allAnnotations := merge (default dict .Values.networking.ingress.odoo.annotations) (default dict .Values.networking.ingress.annotations) }}
-    {{- with $allAnnotations }}
-    {{- toYaml . | nindent 4 }}
+    {{- $globalAnnotations := .Values.networking.ingress.annotations | default dict }}
+    {{- $componentAnnotations := .Values.networking.ingress.odoo.annotations | default dict }}
+    {{- $allAnnotations := merge $componentAnnotations $globalAnnotations }}
+    {{- range $key, $value := $allAnnotations }}
+    {{ $key }}: {{ $value | quote }}
+    {{- end }}
+    {{- if .Values.networking.ingress.certificateArn }}
+    alb.ingress.kubernetes.io/certificate-arn: {{ .Values.networking.ingress.certificateArn | quote }}
+    {{- end }}
+    {{- if .Values.networking.ingress.groupName }}
+    alb.ingress.kubernetes.io/group.name: {{ .Values.networking.ingress.groupName | quote }}
     {{- end }}
 spec:
   {{- if .Values.networking.ingress.className }}
@@ -47,10 +51,7 @@ spec:
                   number: 8069
 {{- end }}
 
-{{/*
-Metabase/BI Ingress - routes to the Metabase service created by the operator
-The operator creates a ClusterIP service named "{name}-metabase" on port 3000
-*/}}
+{{/* Metabase/BI Ingress */}}
 {{- if and .Values.networking.ingress.bi.enabled .Values.addons.bi.enabled }}
 ---
 apiVersion: networking.k8s.io/v1
@@ -62,11 +63,21 @@ metadata:
     {{- include "odoocluster.labels" . | nindent 4 }}
     odoo.simstech.cloud/component: metabase
   annotations:
-    {{- /* Merge global and component-specific annotations */ -}}
-    {{- $allAnnotations := merge (default dict .Values.networking.ingress.bi.annotations) (default dict .Values.networking.ingress.annotations) }}
-    {{- with $allAnnotations }}
-    {{- toYaml . | nindent 4 }}
+    {{- $globalAnnotations := .Values.networking.ingress.annotations | default dict }}
+    {{- $componentAnnotations := .Values.networking.ingress.bi.annotations | default dict }}
+    {{- $allAnnotations := merge $componentAnnotations $globalAnnotations }}
+    {{- range $key, $value := $allAnnotations }}
+    {{- if ne $key "alb.ingress.kubernetes.io/healthcheck-path" }}
+    {{ $key }}: {{ $value | quote }}
     {{- end }}
+    {{- end }}
+    {{- if .Values.networking.ingress.certificateArn }}
+    alb.ingress.kubernetes.io/certificate-arn: {{ .Values.networking.ingress.certificateArn | quote }}
+    {{- end }}
+    {{- if .Values.networking.ingress.groupName }}
+    alb.ingress.kubernetes.io/group.name: {{ .Values.networking.ingress.groupName | quote }}
+    {{- end }}
+    alb.ingress.kubernetes.io/healthcheck-path: "/api/health"
 spec:
   {{- if .Values.networking.ingress.className }}
   ingressClassName: {{ .Values.networking.ingress.className | quote }}
