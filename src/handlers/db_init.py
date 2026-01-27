@@ -223,7 +223,7 @@ print('DB_INITIALIZED')
 conn.close()
 " 2>/dev/null | grep -q "DB_INITIALIZED"; then
     echo "Database already initialized, checking for modules to install..."
-    
+
     # Install additional modules if needed (modules not yet installed)
     echo "Installing modules: {modules_str}"
     odoo --database=odoo --db_host={db_host} --db_port=5432 --db_user=odoo --db_password="$DB_PASSWORD" \\
