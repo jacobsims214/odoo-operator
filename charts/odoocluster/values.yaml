@@ -20,6 +20,10 @@ odoo:
   # Storage for Odoo filestore
   storage: "10Gi"
   
+  # Storage class for filestore (optional)
+  # For multi-replica Odoo, use a RWX-capable storage class (e.g., EFS on AWS, NFS)
+  storageClassName: ""
+  
   # Resource limits
   resources:
     requests:
@@ -30,11 +34,23 @@ odoo:
       memory: "4Gi"
   
   # Git addon repositories
+  # Addons are cloned to /mnt/addons/{name} and added to addons_path
+  #
+  # Fields:
+  #   name: Unique identifier for this addon repo
+  #   repo: Git repository URL
+  #   branch: Git branch (default: "main")
+  #   path: Module name within the repo (for install)
+  #   install: Auto-install the module (default: false)
+  #   deployKeySecret: Secret with SSH key for private repos
+  #
   # Example:
   # addons:
   #   - name: "oca-web"
   #     repo: "https://github.com/OCA/web.git"
-  #     branch: "17.0"
+  #     branch: "19.0"
+  #     path: "web_responsive"
+  #     install: true  # <-- Auto-install this module
   #   - name: "custom"
   #     repo: "git@github.com:company/addons.git"
   #     branch: "main"
@@ -78,7 +94,22 @@ database:
 # Optional Add-ons
 # =============================================================================
 addons:
-  # Valkey (Redis-compatible) for caching/sessions
+  # Valkey (Redis-compatible) for caching
+  # NOTE: For multi-replica Odoo, you need shared sessions. Two options:
+  #
+  # Option 1 (RECOMMENDED): Use session_db module - stores sessions in PostgreSQL
+  #   - name: "oca-server-tools"
+  #     repo: "https://github.com/OCA/server-tools.git"
+  #     branch: "19.0"
+  #     path: "session_db"
+  #   No Valkey needed! Sessions use your existing HA PostgreSQL.
+  #
+  # Option 2: Use session_redis module with Valkey enabled
+  #   - name: "oca-server-auth"
+  #     repo: "https://github.com/OCA/server-auth.git"
+  #     branch: "19.0"
+  #     path: "session_redis"
+  #   Requires Valkey to be enabled below.
   valkey:
     enabled: false
     storage: "1Gi"
@@ -104,9 +135,39 @@ addons:
         memory: "2Gi"
 
 # =============================================================================
-# Networking (Tailscale)
+# Networking
 # =============================================================================
 networking:
+  # Standard Kubernetes Ingress (nginx, ALB, etc.)
+  ingress:
+    enabled: false
+    # Ingress class name (e.g., "nginx", "alb")
+    className: ""
+    # Global annotations for all ingresses
+    annotations: {}
+    # TLS configuration
+    tls:
+      enabled: false
+      # Secret name containing TLS cert (leave empty for ALB with ACM)
+      secretName: ""
+    # Odoo ingress configuration
+    odoo:
+      enabled: true
+      host: ""  # Required: e.g., odoo.example.com
+      # Path configuration
+      path: /
+      pathType: Prefix
+      # Additional annotations for Odoo ingress only
+      annotations: {}
+    # Metabase/BI ingress configuration
+    bi:
+      enabled: false
+      host: ""  # e.g., bi.example.com
+      path: /
+      pathType: Prefix
+      annotations: {}
+
+  # Tailscale networking (alternative to ingress)
   tailscale:
     # Secret containing TS_AUTHKEY
     authSecretName: "tailscale-auth"

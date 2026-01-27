@@ -50,6 +50,9 @@ spec:
                     storage:
                       type: string
                       default: "10Gi"
+                    storageClassName:
+                      type: string
+                      description: "Storage class for filestore PVC (use RWX class for multi-replica)"
                     resources:
                       type: object
                       properties:
@@ -77,15 +80,24 @@ spec:
                         properties:
                           name:
                             type: string
+                            description: "Unique name for this addon repo"
                           repo:
                             type: string
+                            description: "Git repository URL"
                           branch:
                             type: string
                             default: "main"
+                            description: "Git branch to clone"
                           path:
                             type: string
+                            description: "Module name to install (when install: true)"
+                          install:
+                            type: boolean
+                            default: false
+                            description: "Auto-install the module specified in 'path'"
                           deployKeySecret:
                             type: string
+                            description: "Secret containing SSH key for private repos"
                     resources:
                       type: object
                       properties:

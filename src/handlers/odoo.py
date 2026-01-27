@@ -190,6 +190,7 @@ async def create_odoo(
     image: Optional[str] = None,
     replicas: int = 1,
     storage: str = "10Gi",
+    storage_class_name: Optional[str] = None,
     resources: dict = None,
     addons: List[dict] = None,
     db_host: str = None,
@@ -241,6 +242,16 @@ async def create_odoo(
             raise
 
     # Create PVC for filestore
+    pvc_spec = client.V1PersistentVolumeClaimSpec(
+        access_modes=["ReadWriteMany"],  # RWX for multi-replica support with NFS/EFS
+        resources=client.V1VolumeResourceRequirements(
+            requests={"storage": storage}
+        )
+    )
+    # Set storage class if specified (e.g., efs-sc for AWS EFS)
+    if storage_class_name:
+        pvc_spec.storage_class_name = storage_class_name
+
     pvc = client.V1PersistentVolumeClaim(
         metadata=client.V1ObjectMeta(
             name=f"{resource_name}-filestore",
@@ -252,12 +263,7 @@ async def create_odoo(
                 "odoo.simstech.cloud/component": "odoo"
             }
         ),
-        spec=client.V1PersistentVolumeClaimSpec(
-            access_modes=["ReadWriteMany"],  # RWX for multi-replica support with NFS
-            resources=client.V1VolumeResourceRequirements(
-                requests={"storage": storage}
-            )
-        )
+        spec=pvc_spec
     )
 
     try:
@@ -295,7 +301,17 @@ async def create_odoo(
             raise
 
     # Create PVC for addons (if any addons defined)
+    # Note: This PVC may already be created by the db_init job, which is fine (409 = skip)
     if addons:
+        addons_pvc_spec = client.V1PersistentVolumeClaimSpec(
+            access_modes=["ReadWriteMany"],  # RWX for multi-replica support with NFS/EFS
+            resources=client.V1VolumeResourceRequirements(
+                requests={"storage": "5Gi"}
+            )
+        )
+        if storage_class_name:
+            addons_pvc_spec.storage_class_name = storage_class_name
+
         addons_pvc = client.V1PersistentVolumeClaim(
             metadata=client.V1ObjectMeta(
                 name=f"{resource_name}-addons",
@@ -307,12 +323,7 @@ async def create_odoo(
                     "odoo.simstech.cloud/component": "odoo"
                 }
             ),
-            spec=client.V1PersistentVolumeClaimSpec(
-                access_modes=["ReadWriteMany"],  # RWX for multi-replica support with NFS
-                resources=client.V1VolumeResourceRequirements(
-                    requests={"storage": "5Gi"}
-                )
-            )
+            spec=addons_pvc_spec
         )
 
         try:

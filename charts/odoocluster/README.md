@@ -30,7 +30,38 @@ helm install acme ./charts/odoocluster \
   --set secrets.tailscale.authKey="tskey-auth-xxx"
 ```
 
-### Full Production Setup
+### AWS EKS with ALB Ingress
+
+Deploy production Odoo on AWS EKS with Application Load Balancer and ACM certificates:
+
+```bash
+# First, create the S3 backup credentials secret
+kubectl create secret generic backup-s3-creds \
+  --namespace odoo-acme \
+  --from-literal=ACCESS_KEY_ID=AKIAXXXXXXXX \
+  --from-literal=SECRET_ACCESS_KEY=xxxxx
+
+# Deploy with ALB Ingress
+helm install acme ./charts/odoocluster \
+  --namespace odoo-acme \
+  --create-namespace \
+  -f values-aws.yaml \
+  --set name=acme \
+  --set networking.ingress.odoo.host=odoo.example.com \
+  --set networking.ingress.bi.host=bi.example.com \
+  --set 'networking.ingress.annotations.alb\.ingress\.kubernetes\.io/certificate-arn=arn:aws:acm:us-east-1:123456789:certificate/xxxxx' \
+  --set database.backup.s3.bucket=my-odoo-backups
+```
+
+**Prerequisites for AWS EKS:**
+- [AWS Load Balancer Controller](https://kubernetes-sigs.github.io/aws-load-balancer-controller/) installed
+- ACM certificate provisioned and validated for your domains
+- EBS CSI driver for gp3 storage (database, Valkey)
+- EFS CSI driver for RWX storage (recommended for multi-replica Odoo filestore)
+
+See `values-aws.yaml` for a complete AWS production configuration.
+
+### Full Production Setup (Self-hosted / Tailscale)
 
 ```bash
 helm install acme ./charts/odoocluster \
@@ -43,7 +74,7 @@ Example `values-acme.yaml`:
 
 ```yaml
 odoo:
-  version: "17"
+  version: "19"
   replicas: 2
   storage: "20Gi"
   resources:
@@ -56,7 +87,7 @@ odoo:
   addons:
     - name: "oca-web"
       repo: "https://github.com/OCA/web.git"
-      branch: "17.0"
+      branch: "19.0"
     - name: "custom"
       repo: "git@github.com:acme/odoo-addons.git"
       branch: "main"
@@ -133,7 +164,21 @@ secrets:
 | `addons.valkey.enabled` | Enable Valkey cache | `false` |
 | `addons.bi.enabled` | Enable Metabase BI | `false` |
 
-### Networking
+### Networking - Ingress
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `networking.ingress.enabled` | Enable Kubernetes Ingress | `false` |
+| `networking.ingress.className` | Ingress class (nginx, alb, etc.) | `""` |
+| `networking.ingress.annotations` | Global ingress annotations | `{}` |
+| `networking.ingress.tls.enabled` | Enable TLS | `false` |
+| `networking.ingress.tls.secretName` | TLS secret (empty for ACM) | `""` |
+| `networking.ingress.odoo.enabled` | Create Odoo ingress | `true` |
+| `networking.ingress.odoo.host` | Odoo hostname (required) | `""` |
+| `networking.ingress.bi.enabled` | Create Metabase ingress | `false` |
+| `networking.ingress.bi.host` | Metabase hostname | `""` |
+
+### Networking - Tailscale
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|

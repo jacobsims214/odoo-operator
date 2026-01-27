@@ -30,16 +30,26 @@ odoo:
       memory: "4Gi"      # Request 4GB RAM per replica
     limits:
       cpu: "4"           # Limit to 4 CPUs per replica
-      memory: "16Gi"     # Limit to 16GB RAM per replica
+      memory: "8Gi"     # Limit to 16GB RAM per replica
   
-  # Public OCA modules
+  # OCA modules for production
   addons:
     # OCA Web Responsive - Mobile-friendly UI
     # https://github.com/OCA/web/tree/19.0/web_responsive
     - name: "oca-web"
       repo: "https://github.com/OCA/web.git"
       branch: "19.0"
-      path: "web_responsive"  # Only install web_responsive from this repo
+      path: "web_responsive"
+      install: true
+    # OCA Session DB - Stores sessions in PostgreSQL for multi-replica support
+    # REQUIRED for multi-replica Odoo - sessions are shared via the existing database
+    # No extra Redis/Valkey infrastructure needed!
+    # https://github.com/OCA/server-tools/tree/19.0/session_db
+    - name: "oca-server-tools"
+      repo: "https://github.com/OCA/server-tools.git"
+      branch: "19.0"
+      path: "session_db"
+      install: true
 
 # =============================================================================
 # Database Configuration (CloudNative-PG)
@@ -68,9 +78,10 @@ database:
 # Optional Add-ons
 # =============================================================================
 addons:
-  # Valkey (Redis) for session caching - recommended for multi-replica Odoo
+  # Valkey (Redis) for caching - OPTIONAL with session_db module
+  # Sessions are stored in PostgreSQL, so Valkey is only needed for extra caching
   valkey:
-    enabled: true
+    enabled: false
     storage: "2Gi"
     resources:
       requests:

@@ -1,0 +1,209 @@
+# =============================================================================
+# AWS EKS Production Values for OdooCluster
+# =============================================================================
+#
+# Prerequisites:
+#   - AWS Load Balancer Controller installed in cluster
+#   - ACM certificate provisioned and validated
+#   - EBS CSI driver for gp3 storage class
+#   - (Optional) EFS CSI driver for RWX storage (recommended for multi-replica Odoo)
+#
+# Deploy with:
+#   helm install my-company ./charts/odoocluster \
+#     -n odoo-my-company --create-namespace \
+#     -f values-aws.yaml \
+#     --set networking.ingress.odoo.host=odoo.example.com \
+#     --set networking.ingress.bi.host=bi.example.com \
+#     --set networking.ingress.annotations."alb\.ingress\.kubernetes\.io/certificate-arn"=arn:aws:acm:us-east-1:123456789:certificate/xxxxx
+#
+# =============================================================================
+
+# Cluster name (set this or use --set name=xxx)
+name: ""
+
+# =============================================================================
+# Odoo Configuration
+# =============================================================================
+odoo:
+  # Odoo 19 for latest features
+  version: "19"
+  
+  # 3 replicas for high availability
+  replicas: 3
+  
+  # Storage for Odoo filestore
+  # NOTE: Multi-replica Odoo requires RWX storage (EFS on AWS)
+  storage: "50Gi"
+  # Storage class for filestore - MUST support ReadWriteMany for multi-replica
+  storageClassName: "efs-sc"
+  
+  # Production resource allocation
+  resources:
+    requests:
+      cpu: "1"
+      memory: "4Gi"
+    limits:
+      cpu: "4"
+      memory: "16Gi"
+  
+  # OCA modules for production
+  addons:
+    # OCA Web Responsive - Better mobile UI
+    - name: "oca-web"
+      repo: "https://github.com/OCA/web.git"
+      branch: "19.0"
+      path: "web_responsive"
+      install: true  # Auto-install this module
+    # OCA Session DB - Stores sessions in PostgreSQL for multi-replica support
+    # This is REQUIRED for multi-replica Odoo - sessions are shared via the database
+    # https://github.com/OCA/server-tools/tree/19.0/session_db
+    - name: "oca-server-tools"
+      repo: "https://github.com/OCA/server-tools.git"
+      branch: "19.0"
+      path: "session_db"
+      install: true  # Auto-install this module
+
+# =============================================================================
+# Database Configuration (CloudNative-PG)
+# =============================================================================
+database:
+  # Storage size - uses gp3 by default on EKS
+  storage: "100Gi"
+  
+  # 3 PostgreSQL instances for HA (1 primary + 2 replicas)
+  instances: 3
+  
+  # Production database resources
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "2Gi"
+    limits:
+      cpu: "2"
+      memory: "8Gi"
+  
+  # S3 backup configuration
+  backup:
+    enabled: true
+    schedule: "0 2 * * *"  # 2 AM daily
+    retentionPolicy: "30d"
+    s3:
+      # S3 endpoint for your region (leave empty for default AWS S3)
+      endpoint: ""
+      # S3 bucket name for backups
+      bucket: ""  # Set via --set database.backup.s3.bucket=your-backup-bucket
+      # Secret containing ACCESS_KEY_ID and SECRET_ACCESS_KEY
+      # Create with: kubectl create secret generic backup-s3-creds \
+      #   --from-literal=ACCESS_KEY_ID=xxx --from-literal=SECRET_ACCESS_KEY=xxx
+      secretName: "backup-s3-creds"
+
+# =============================================================================
+# Add-ons
+# =============================================================================
+addons:
+  # Valkey (Redis-compatible) for caching (OPTIONAL)
+  # With session_db module, sessions are stored in PostgreSQL - no Redis needed!
+  # Enable Valkey only if you need Redis caching for performance optimization
+  valkey:
+    enabled: false
+    storage: "5Gi"
+    resources:
+      requests:
+        cpu: "200m"
+        memory: "512Mi"
+      limits:
+        cpu: "1"
+        memory: "2Gi"
+  
+  # Metabase BI for reporting and dashboards
+  bi:
+    enabled: true
+    tool: "metabase"
+    storage: "10Gi"
+    resources:
+      requests:
+        cpu: "1"
+        memory: "2Gi"
+      limits:
+        cpu: "4"
+        memory: "8Gi"
+
+# =============================================================================
+# Networking - AWS ALB Ingress
+# =============================================================================
+networking:
+  ingress:
+    enabled: true
+    # AWS Load Balancer Controller ingress class
+    className: "alb"
+    
+    # Global ALB annotations
+    # These apply to both Odoo and Metabase ingresses
+    annotations:
+      # ALB scheme: internet-facing (public) or internal
+      alb.ingress.kubernetes.io/scheme: internet-facing
+      # ALB target type: ip (recommended for EKS)
+      alb.ingress.kubernetes.io/target-type: ip
+      # Listen on HTTPS (port 443)
+      alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
+      # SSL redirect: redirect HTTP to HTTPS
+      alb.ingress.kubernetes.io/ssl-redirect: "443"
+      # ACM Certificate ARN - SET THIS VALUE
+      # alb.ingress.kubernetes.io/certificate-arn: "arn:aws:acm:REGION:ACCOUNT:certificate/CERT-ID"
+      # Health check settings
+      alb.ingress.kubernetes.io/healthcheck-path: /web/health
+      alb.ingress.kubernetes.io/healthcheck-interval-seconds: "30"
+      alb.ingress.kubernetes.io/healthcheck-timeout-seconds: "5"
+      alb.ingress.kubernetes.io/healthy-threshold-count: "2"
+      alb.ingress.kubernetes.io/unhealthy-threshold-count: "3"
+      # Idle timeout (Odoo can have long-running requests)
+      alb.ingress.kubernetes.io/load-balancer-attributes: idle_timeout.timeout_seconds=300
+      # Group name - ingresses with same group share one ALB
+      alb.ingress.kubernetes.io/group.name: odoo-cluster
+    
+    # TLS - handled by ACM via annotations
+    tls:
+      enabled: true
+      # No secretName needed - ALB terminates TLS with ACM cert
+      secretName: ""
+    
+    # Odoo ingress
+    odoo:
+      enabled: true
+      # SET THIS: Your Odoo hostname
+      host: ""  # e.g., odoo.example.com
+      path: /
+      pathType: Prefix
+      annotations: {}
+    
+    # Metabase ingress
+    bi:
+      enabled: true
+      # SET THIS: Your Metabase hostname
+      host: ""  # e.g., bi.example.com
+      path: /
+      pathType: Prefix
+      annotations:
+        # Metabase has different health check path
+        alb.ingress.kubernetes.io/healthcheck-path: /api/health
+  
+  # Tailscale disabled for AWS deployment
+  tailscale:
+    authSecretName: "tailscale-auth"
+    odoo:
+      enabled: false
+    bi:
+      enabled: false
+
+# =============================================================================
+# Secrets
+# =============================================================================
+secrets:
+  tailscale:
+    create: false
+  backup:
+    # Set to true and provide credentials, or create secret manually
+    create: false
+    accessKeyId: ""
+    secretAccessKey: ""
+  deployKeys: []

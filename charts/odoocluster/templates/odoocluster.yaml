@@ -13,6 +13,9 @@ spec:
     {{- end }}
     replicas: {{ .Values.odoo.replicas }}
     storage: {{ .Values.odoo.storage | quote }}
+    {{- if .Values.odoo.storageClassName }}
+    storageClassName: {{ .Values.odoo.storageClassName | quote }}
+    {{- end }}
     {{- if .Values.odoo.resources }}
     resources:
       {{- toYaml .Values.odoo.resources | nindent 6 }}

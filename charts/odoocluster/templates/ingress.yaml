@@ -1,0 +1,95 @@
+{{- if .Values.networking.ingress.enabled }}
+{{- $clusterName := include "odoocluster.name" . -}}
+{{- $namespace := .Release.Namespace -}}
+
+{{/*
+Odoo Ingress - routes to the Odoo service created by the operator
+The operator creates a ClusterIP service named "{name}-odoo" on port 8069
+*/}}
+{{- if .Values.networking.ingress.odoo.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ $clusterName }}-odoo
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "odoocluster.labels" . | nindent 4 }}
+    odoo.simstech.cloud/component: odoo
+  annotations:
+    {{- /* Merge global and component-specific annotations */ -}}
+    {{- $allAnnotations := merge (default dict .Values.networking.ingress.odoo.annotations) (default dict .Values.networking.ingress.annotations) }}
+    {{- with $allAnnotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  {{- if .Values.networking.ingress.className }}
+  ingressClassName: {{ .Values.networking.ingress.className | quote }}
+  {{- end }}
+  {{- if and .Values.networking.ingress.tls.enabled .Values.networking.ingress.odoo.host }}
+  tls:
+    - hosts:
+        - {{ .Values.networking.ingress.odoo.host | quote }}
+      {{- if .Values.networking.ingress.tls.secretName }}
+      secretName: {{ .Values.networking.ingress.tls.secretName | quote }}
+      {{- end }}
+  {{- end }}
+  rules:
+    - host: {{ required "networking.ingress.odoo.host is required when ingress is enabled" .Values.networking.ingress.odoo.host | quote }}
+      http:
+        paths:
+          - path: {{ .Values.networking.ingress.odoo.path | default "/" }}
+            pathType: {{ .Values.networking.ingress.odoo.pathType | default "Prefix" }}
+            backend:
+              service:
+                name: {{ $clusterName }}-odoo
+                port:
+                  number: 8069
+{{- end }}
+
+{{/*
+Metabase/BI Ingress - routes to the Metabase service created by the operator
+The operator creates a ClusterIP service named "{name}-metabase" on port 3000
+*/}}
+{{- if and .Values.networking.ingress.bi.enabled .Values.addons.bi.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ $clusterName }}-bi
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "odoocluster.labels" . | nindent 4 }}
+    odoo.simstech.cloud/component: metabase
+  annotations:
+    {{- /* Merge global and component-specific annotations */ -}}
+    {{- $allAnnotations := merge (default dict .Values.networking.ingress.bi.annotations) (default dict .Values.networking.ingress.annotations) }}
+    {{- with $allAnnotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  {{- if .Values.networking.ingress.className }}
+  ingressClassName: {{ .Values.networking.ingress.className | quote }}
+  {{- end }}
+  {{- if and .Values.networking.ingress.tls.enabled .Values.networking.ingress.bi.host }}
+  tls:
+    - hosts:
+        - {{ .Values.networking.ingress.bi.host | quote }}
+      {{- if .Values.networking.ingress.tls.secretName }}
+      secretName: {{ .Values.networking.ingress.tls.secretName | quote }}
+      {{- end }}
+  {{- end }}
+  rules:
+    - host: {{ required "networking.ingress.bi.host is required when bi ingress is enabled" .Values.networking.ingress.bi.host | quote }}
+      http:
+        paths:
+          - path: {{ .Values.networking.ingress.bi.path | default "/" }}
+            pathType: {{ .Values.networking.ingress.bi.pathType | default "Prefix" }}
+            backend:
+              service:
+                name: {{ $clusterName }}-metabase
+                port:
+                  number: 3000
+{{- end }}
+
+{{- end }}

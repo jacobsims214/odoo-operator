@@ -144,6 +144,7 @@ async def on_create(spec, name, namespace, logger, patch, meta, **kwargs):
         odoo_spec = spec.get('odoo', {})
         version = odoo_spec.get('version', '17.0')
         odoo_image = odoo_spec.get('image') or f"odoo:{version}"
+        odoo_addons = odoo_spec.get('addons', [])
 
         await create_db_init_job(
             namespace=cluster_namespace,
@@ -152,6 +153,8 @@ async def on_create(spec, name, namespace, logger, patch, meta, **kwargs):
             db_host=f"{name}-db-rw",
             db_secret=f"{name}-db-app",
             admin_secret_name=f"{name}-odoo-admin",
+            addons=odoo_addons,
+            storage_class_name=odoo_spec.get('storageClassName'),
             owner_ref=owner_ref
         )
 
@@ -175,6 +178,7 @@ async def on_create(spec, name, namespace, logger, patch, meta, **kwargs):
             image=odoo_spec.get('image'),
             replicas=odoo_spec.get('replicas', 1),
             storage=odoo_spec.get('storage', '10Gi'),
+            storage_class_name=odoo_spec.get('storageClassName'),
             resources=odoo_spec.get('resources', {}),
             addons=odoo_spec.get('addons', []),
             db_host=f"{name}-db-rw",
