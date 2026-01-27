@@ -109,16 +109,15 @@ def build_restore_script(
     database_key = s3_config.get('databaseKey', '')
     filestore_key = s3_config.get('filestoreKey', '')
 
-    # Build clone script for addons (still need module code)
-    clone_script = build_clone_script(addons) if addons else ""
+    # Note: Addons are cloned by the init container (alpine/git)
+    # The main container (Odoo) doesn't have git installed
 
     script = f'''
 set -e  # Exit on error
 
 echo "=== Odoo Database RESTORE Job ==="
 echo "Restoring from S3 backup..."
-
-{clone_script}
+echo "Note: Addons already cloned by init container"
 
 # Install AWS CLI for S3 access
 echo "Installing AWS CLI..."
@@ -336,8 +335,8 @@ async def create_db_init_job(
             addons=addons
         )
     else:
-        # Build clone script for addons
-        clone_script = build_clone_script(addons)
+        # Note: Addons are cloned by the init container (alpine/git)
+        # The main container (Odoo) doesn't have git installed
 
         # Get modules to install from addons with 'path' specified
         modules_to_install = get_modules_to_install(addons)
@@ -349,8 +348,7 @@ async def create_db_init_job(
         # Build the init script
         init_script = f"""
 echo "=== Odoo Database Initialization Job ==="
-
-{clone_script}
+echo "Note: Addons already cloned by init container"
 
 echo "Waiting for database to be ready..."
 
