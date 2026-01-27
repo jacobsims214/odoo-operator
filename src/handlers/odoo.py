@@ -94,19 +94,27 @@ def build_git_clone_script(addons: List[dict]) -> str:
             key_path = f"/keys/{deploy_key_secret}/ssh-privatekey"
             script_lines.append(f"export GIT_SSH_COMMAND='ssh -i {key_path} -o StrictHostKeyChecking=no'")
 
-        # Check if repo exists and is a valid git repo
+        # Check if repo exists and clone is complete
+        # We verify completeness by checking git status - incomplete clones will fail
         script_lines.append(f"if [ -d '{target_dir}/.git' ]; then")
-        script_lines.append(f"  echo 'Repo {name} already exists, checking branch...'")
-        script_lines.append(f"  cleanup_git_locks {target_dir}")
         script_lines.append(f"  cd {target_dir}")
-        # Just verify we're on the right branch, don't pull (avoids conflicts)
-        script_lines.append("  CURRENT_BRANCH=$(git branch --show-current 2>/dev/null || echo 'unknown')")
-        script_lines.append(f"  if [ \"$CURRENT_BRANCH\" = \"{branch}\" ]; then")
-        script_lines.append(f"    echo 'Already on branch {branch}, skipping update'")
+        script_lines.append(f"  cleanup_git_locks {target_dir}")
+        script_lines.append("  # Verify clone is complete by checking git status")
+        script_lines.append("  if git status >/dev/null 2>&1; then")
+        script_lines.append(f"    echo 'Repo {name} already exists and is valid, checking branch...'")
+        script_lines.append("    CURRENT_BRANCH=$(git branch --show-current 2>/dev/null || echo 'unknown')")
+        script_lines.append(f"    if [ \"$CURRENT_BRANCH\" = \"{branch}\" ]; then")
+        script_lines.append(f"      echo 'Already on branch {branch}, skipping update'")
+        script_lines.append("    else")
+        script_lines.append(f"      echo 'Switching to branch {branch}'")
+        script_lines.append(f"      git fetch origin {branch} --depth 1 || true")
+        script_lines.append(f"      git checkout {branch} || git checkout -b {branch} origin/{branch}")
+        script_lines.append("    fi")
         script_lines.append("  else")
-        script_lines.append(f"    echo 'Switching to branch {branch}'")
-        script_lines.append(f"    git fetch origin {branch} --depth 1 || true")
-        script_lines.append(f"    git checkout {branch} || git checkout -b {branch} origin/{branch}")
+        script_lines.append(f"    echo 'Repo {name} exists but is incomplete or corrupted, re-cloning...'")
+        script_lines.append(f"    cd /mnt/addons")
+        script_lines.append(f"    rm -rf {target_dir}")
+        script_lines.append(f"    git clone --depth 1 --branch {branch} {repo} {target_dir}")
         script_lines.append("  fi")
         script_lines.append(f"elif [ -d '{target_dir}' ]; then")
         script_lines.append(f"  echo 'Directory {name} exists but is not a git repo, removing and cloning fresh...'")
@@ -114,7 +122,7 @@ def build_git_clone_script(addons: List[dict]) -> str:
         script_lines.append(f"  git clone --depth 1 --branch {branch} {repo} {target_dir}")
         script_lines.append("else")
         script_lines.append(f"  echo 'Fresh clone of {name}...'")
-        script_lines.append(f"  rm -rf {target_dir}")  # Clean up partial clones
+        script_lines.append(f"  rm -rf {target_dir}")
         script_lines.append(f"  git clone --depth 1 --branch {branch} {repo} {target_dir}")
         script_lines.append("fi")
 
