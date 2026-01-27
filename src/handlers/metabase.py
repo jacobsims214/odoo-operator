@@ -43,6 +43,7 @@ async def create_metabase(
     namespace: str,
     name: str,
     storage: str = "5Gi",
+    storage_class_name: Optional[str] = None,
     resources: dict = None,
     tailscale: Optional[dict] = None,
     tailscale_auth_secret: str = "tailscale-auth",
@@ -88,6 +89,15 @@ async def create_metabase(
             raise
 
     # Create PVC for Metabase H2 database (or use app DB for production)
+    pvc_spec = client.V1PersistentVolumeClaimSpec(
+        access_modes=["ReadWriteOnce"],
+        resources=client.V1VolumeResourceRequirements(
+            requests={"storage": storage}
+        )
+    )
+    if storage_class_name:
+        pvc_spec.storage_class_name = storage_class_name
+
     pvc = client.V1PersistentVolumeClaim(
         metadata=client.V1ObjectMeta(
             name=f"{resource_name}-data",
@@ -99,12 +109,7 @@ async def create_metabase(
                 "odoo.simstech.cloud/component": "metabase"
             }
         ),
-        spec=client.V1PersistentVolumeClaimSpec(
-            access_modes=["ReadWriteOnce"],
-            resources=client.V1VolumeResourceRequirements(
-                requests={"storage": storage}
-            )
-        )
+        spec=pvc_spec
     )
 
     try:

@@ -125,6 +125,9 @@ spec:
                     storage:
                       type: string
                       default: "20Gi"
+                    storageClassName:
+                      type: string
+                      description: Storage class for the PostgreSQL PVC (required on EKS Auto Mode)
                     instances:
                       type: integer
                       default: 1
@@ -208,6 +211,9 @@ spec:
                         storage:
                           type: string
                           default: "5Gi"
+                        storageClassName:
+                          type: string
+                          description: Storage class for the Metabase PVC
                         resources:
                           type: object
                           properties:

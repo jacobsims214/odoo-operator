@@ -70,6 +70,11 @@ database:
   # Storage size - uses gp3 by default on EKS
   storage: "100Gi"
   
+  # Storage class name - required on EKS Auto Mode, optional otherwise
+  # For EBS volumes (recommended for database): "gp3" or "ebs-sc"
+  # Leave empty to use cluster default
+  storageClassName: ""
+  
   # 3 PostgreSQL instances for HA (1 primary + 2 replicas)
   instances: 3
   
@@ -120,6 +125,9 @@ addons:
     enabled: true
     tool: "metabase"
     storage: "10Gi"
+    # Storage class name - uses cluster default if not set
+    # For EBS volumes (RWO): "gp3" or "ebs-sc"
+    storageClassName: ""
     resources:
       requests:
         cpu: "1"

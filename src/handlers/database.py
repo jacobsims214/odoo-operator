@@ -12,6 +12,7 @@ async def create_database(
     namespace: str,
     name: str,
     storage: str = "20Gi",
+    storage_class_name: Optional[str] = None,
     instances: int = 1,
     resources: dict = None,
     backup: Optional[dict] = None,
@@ -25,12 +26,15 @@ async def create_database(
     requests = res.get('requests', {})
     limits = res.get('limits', {})
 
+    # Build storage spec
+    storage_spec = {"size": storage}
+    if storage_class_name:
+        storage_spec["storageClass"] = storage_class_name
+
     # Base cluster spec
     cluster_spec = {
         "instances": instances,
-        "storage": {
-            "size": storage
-        },
+        "storage": storage_spec,
         "resources": {
             "requests": {
                 "cpu": requests.get('cpu', '250m'),

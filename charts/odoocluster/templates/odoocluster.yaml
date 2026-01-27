@@ -27,6 +27,9 @@ spec:
   
   database:
     storage: {{ .Values.database.storage | quote }}
+    {{- if .Values.database.storageClassName }}
+    storageClassName: {{ .Values.database.storageClassName | quote }}
+    {{- end }}
     instances: {{ .Values.database.instances }}
     {{- if .Values.database.resources }}
     resources:
@@ -59,6 +62,9 @@ spec:
       enabled: true
       tool: {{ .Values.addons.bi.tool | quote }}
       storage: {{ .Values.addons.bi.storage | quote }}
+      {{- if .Values.addons.bi.storageClassName }}
+      storageClassName: {{ .Values.addons.bi.storageClassName | quote }}
+      {{- end }}
       {{- if .Values.addons.bi.resources }}
       resources:
         {{- toYaml .Values.addons.bi.resources | nindent 8 }}
