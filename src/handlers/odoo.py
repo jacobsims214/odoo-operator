@@ -98,7 +98,7 @@ def build_git_clone_script(addons: List[dict]) -> str:
         # git status isn't enough - it returns success during checkout
         # We check for a .clone_complete marker file that we create after successful clone
         script_lines.append(f"CLONE_MARKER='{target_dir}/.clone_complete'")
-        script_lines.append(f"if [ -f \"$CLONE_MARKER\" ]; then")
+        script_lines.append("if [ -f \"$CLONE_MARKER\" ]; then")
         script_lines.append(f"  echo 'Repo {name} already cloned (marker exists), checking branch...'")
         script_lines.append(f"  cd {target_dir}")
         script_lines.append(f"  cleanup_git_locks {target_dir}")
