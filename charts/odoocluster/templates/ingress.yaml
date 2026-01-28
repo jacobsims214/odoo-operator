@@ -34,6 +34,9 @@ spec:
   tls:
     - hosts:
         - {{ .Values.networking.ingress.odoo.host | quote }}
+        {{- range .Values.networking.ingress.odoo.additionalHosts }}
+        - {{ . | quote }}
+        {{- end }}
       {{- if .Values.networking.ingress.tls.secretName }}
       secretName: {{ .Values.networking.ingress.tls.secretName | quote }}
       {{- end }}
@@ -49,6 +52,18 @@ spec:
                 name: {{ $clusterName }}-odoo
                 port:
                   number: 8069
+    {{- range .Values.networking.ingress.odoo.additionalHosts }}
+    - host: {{ . | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $clusterName }}-odoo
+                port:
+                  number: 8069
+    {{- end }}
 {{- end }}
 
 {{/* Metabase/BI Ingress */}}

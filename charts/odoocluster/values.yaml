@@ -204,6 +204,13 @@ networking:
       enabled: true
       # SET THIS: Your Odoo hostname
       host: ""  # e.g., odoo.example.com
+      # Additional hostnames that route to the same Odoo backend
+      # Useful for CNAME aliases like www.example.com -> odoo.example.com
+      additionalHosts: []
+      # Example:
+      # additionalHosts:
+      #   - www.avware.io
+      #   - app.avware.io
       path: /
       pathType: Prefix
       annotations: {}
