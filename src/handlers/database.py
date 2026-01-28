@@ -62,22 +62,26 @@ async def create_database(
     # Add backup configuration if enabled
     if backup:
         s3_config = backup.get('s3', {})
-        if s3_config.get('endpoint') and s3_config.get('bucket'):
-            cluster_spec["backup"] = {
-                "barmanObjectStore": {
-                    "destinationPath": f"s3://{s3_config['bucket']}/{name}",
-                    "endpointURL": s3_config['endpoint'],
-                    "s3Credentials": {
-                        "accessKeyId": {
-                            "name": s3_config.get('secretName', 'backup-s3-creds'),
-                            "key": "ACCESS_KEY_ID"
-                        },
-                        "secretAccessKey": {
-                            "name": s3_config.get('secretName', 'backup-s3-creds'),
-                            "key": "SECRET_ACCESS_KEY"
-                        }
+        if s3_config.get('bucket'):
+            barman_config = {
+                "destinationPath": f"s3://{s3_config['bucket']}/{name}",
+                "s3Credentials": {
+                    "accessKeyId": {
+                        "name": s3_config.get('secretName', 'backup-s3-creds'),
+                        "key": "ACCESS_KEY_ID"
+                    },
+                    "secretAccessKey": {
+                        "name": s3_config.get('secretName', 'backup-s3-creds'),
+                        "key": "SECRET_ACCESS_KEY"
                     }
-                },
+                }
+            }
+            # Only add endpointURL if specified (not needed for standard AWS S3)
+            if s3_config.get('endpoint'):
+                barman_config["endpointURL"] = s3_config['endpoint']
+
+            cluster_spec["backup"] = {
+                "barmanObjectStore": barman_config,
                 "retentionPolicy": backup.get('retentionPolicy', '30d')
             }
 
@@ -123,7 +127,7 @@ async def create_database(
             raise kopf.PermanentError(f"Failed to create database: {e}")
 
     # Create scheduled backup if backup is enabled
-    if backup and backup.get('s3', {}).get('endpoint'):
+    if backup and backup.get('s3', {}).get('bucket'):
         await create_scheduled_backup(
             namespace=namespace,
             name=name,
