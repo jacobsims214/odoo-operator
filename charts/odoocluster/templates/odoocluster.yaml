@@ -18,7 +18,24 @@ spec:
     {{- end }}
     {{- if .Values.odoo.resources }}
     resources:
-      {{- toYaml .Values.odoo.resources | nindent 6 }}
+      {{- if .Values.odoo.resources.requests }}
+      requests:
+        {{- if .Values.odoo.resources.requests.cpu }}
+        cpu: {{ .Values.odoo.resources.requests.cpu | quote }}
+        {{- end }}
+        {{- if .Values.odoo.resources.requests.memory }}
+        memory: {{ .Values.odoo.resources.requests.memory | quote }}
+        {{- end }}
+      {{- end }}
+      {{- if .Values.odoo.resources.limits }}
+      limits:
+        {{- if .Values.odoo.resources.limits.cpu }}
+        cpu: {{ .Values.odoo.resources.limits.cpu | quote }}
+        {{- end }}
+        {{- if .Values.odoo.resources.limits.memory }}
+        memory: {{ .Values.odoo.resources.limits.memory | quote }}
+        {{- end }}
+      {{- end }}
     {{- end }}
     {{- if .Values.odoo.addons }}
     addons:
@@ -33,7 +50,24 @@ spec:
     instances: {{ .Values.database.instances }}
     {{- if .Values.database.resources }}
     resources:
-      {{- toYaml .Values.database.resources | nindent 6 }}
+      {{- if .Values.database.resources.requests }}
+      requests:
+        {{- if .Values.database.resources.requests.cpu }}
+        cpu: {{ .Values.database.resources.requests.cpu | quote }}
+        {{- end }}
+        {{- if .Values.database.resources.requests.memory }}
+        memory: {{ .Values.database.resources.requests.memory | quote }}
+        {{- end }}
+      {{- end }}
+      {{- if .Values.database.resources.limits }}
+      limits:
+        {{- if .Values.database.resources.limits.cpu }}
+        cpu: {{ .Values.database.resources.limits.cpu | quote }}
+        {{- end }}
+        {{- if .Values.database.resources.limits.memory }}
+        memory: {{ .Values.database.resources.limits.memory | quote }}
+        {{- end }}
+      {{- end }}
     {{- end }}
     {{- if .Values.database.backup.enabled }}
     backup:
@@ -66,7 +100,24 @@ spec:
       storage: {{ .Values.addons.valkey.storage | quote }}
       {{- if .Values.addons.valkey.resources }}
       resources:
-        {{- toYaml .Values.addons.valkey.resources | nindent 8 }}
+        {{- if .Values.addons.valkey.resources.requests }}
+        requests:
+          {{- if .Values.addons.valkey.resources.requests.cpu }}
+          cpu: {{ .Values.addons.valkey.resources.requests.cpu | quote }}
+          {{- end }}
+          {{- if .Values.addons.valkey.resources.requests.memory }}
+          memory: {{ .Values.addons.valkey.resources.requests.memory | quote }}
+          {{- end }}
+        {{- end }}
+        {{- if .Values.addons.valkey.resources.limits }}
+        limits:
+          {{- if .Values.addons.valkey.resources.limits.cpu }}
+          cpu: {{ .Values.addons.valkey.resources.limits.cpu | quote }}
+          {{- end }}
+          {{- if .Values.addons.valkey.resources.limits.memory }}
+          memory: {{ .Values.addons.valkey.resources.limits.memory | quote }}
+          {{- end }}
+        {{- end }}
       {{- end }}
     {{- end }}
     {{- if .Values.addons.bi.enabled }}
@@ -79,7 +130,24 @@ spec:
       {{- end }}
       {{- if .Values.addons.bi.resources }}
       resources:
-        {{- toYaml .Values.addons.bi.resources | nindent 8 }}
+        {{- if .Values.addons.bi.resources.requests }}
+        requests:
+          {{- if .Values.addons.bi.resources.requests.cpu }}
+          cpu: {{ .Values.addons.bi.resources.requests.cpu | quote }}
+          {{- end }}
+          {{- if .Values.addons.bi.resources.requests.memory }}
+          memory: {{ .Values.addons.bi.resources.requests.memory | quote }}
+          {{- end }}
+        {{- end }}
+        {{- if .Values.addons.bi.resources.limits }}
+        limits:
+          {{- if .Values.addons.bi.resources.limits.cpu }}
+          cpu: {{ .Values.addons.bi.resources.limits.cpu | quote }}
+          {{- end }}
+          {{- if .Values.addons.bi.resources.limits.memory }}
+          memory: {{ .Values.addons.bi.resources.limits.memory | quote }}
+          {{- end }}
+        {{- end }}
       {{- end }}
     {{- end }}
   {{- end }}

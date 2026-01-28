@@ -59,20 +59,20 @@ def build_git_clone_script(addons: List[dict]) -> str:
         "  fi",
         "}",
         "",
-        "# Wait for any other clone operations to finish (max 15 minutes)",
-        "# The enterprise repo is large and can take 5+ minutes to clone",
+        "# Wait for any other clone operations to finish (max 45 minutes)",
+        "# The enterprise repo is large and can take 25+ minutes on EFS",
         "wait_for_lock() {",
         "  local count=0",
-        "  local max_wait=900",  # 15 minutes
+        "  local max_wait=2700",  # 45 minutes
         "  while [ -f \"$LOCK_FILE\" ] && [ $count -lt $max_wait ]; do",
         "    echo \"Waiting for other clone operation to finish... ($count/$max_wait seconds)\"",
-        "    sleep 5",
-        "    count=$((count + 5))",
+        "    sleep 10",
+        "    count=$((count + 10))",
         "  done",
         "  if [ -f \"$LOCK_FILE\" ]; then",
         "    echo \"Lock still held after $max_wait seconds, checking if stale...\"",
-        "    # Only remove if lock file is older than 20 minutes (truly stale)",
-        "    find \"$LOCK_FILE\" -mmin +20 -delete 2>/dev/null || true",
+        "    # Only remove if lock file is older than 60 minutes (truly stale)",
+        "    find \"$LOCK_FILE\" -mmin +60 -delete 2>/dev/null || true",
         "  fi",
         "}",
         "",
@@ -117,30 +117,16 @@ def build_git_clone_script(addons: List[dict]) -> str:
         script_lines.append(f"    git checkout {branch} || git checkout -b {branch} origin/{branch}")
         script_lines.append("  fi")
         script_lines.append("else")
-        script_lines.append("  # No marker - either clone in progress or needs fresh clone")
-        script_lines.append(f"  if [ -d '{target_dir}/.git' ]; then")
-        script_lines.append(f"    echo 'Clone of {name} appears in progress (no marker but .git exists), waiting...'")
-        script_lines.append("    # Wait for the marker to appear (another pod is cloning)")
-        script_lines.append("    wait_count=0")
-        script_lines.append("    while [ ! -f \"$CLONE_MARKER\" ] && [ $wait_count -lt 900 ]; do")
-        script_lines.append(f"      echo 'Waiting for {name} clone to complete... ($wait_count/900s)'")
-        script_lines.append("      sleep 10")
-        script_lines.append("      wait_count=$((wait_count + 10))")
-        script_lines.append("    done")
-        script_lines.append("    if [ -f \"$CLONE_MARKER\" ]; then")
-        script_lines.append(f"      echo '{name} clone completed by another pod'")
-        script_lines.append("    else")
-        script_lines.append(f"      echo 'ERROR: Timed out waiting for {name} clone. Check other pod logs.'")
-        script_lines.append("      exit 1")
-        script_lines.append("    fi")
-        script_lines.append("  else")
-        script_lines.append("    # No .git directory - we need to do fresh clone")
-        script_lines.append(f"    echo 'Fresh clone of {name}...'")
-        script_lines.append(f"    rm -rf {target_dir} 2>/dev/null || true")
-        script_lines.append(f"    git clone --depth 1 --branch {branch} {repo} {target_dir}")
-        script_lines.append(f"    touch {target_dir}/.clone_complete")
-        script_lines.append(f"    echo '{name} clone complete, marker created'")
+        script_lines.append("  # No marker - we have the lock, so either stale data or needs fresh clone")
+        script_lines.append("  # Since WE hold the lock, no other pod is cloning - this is stale/incomplete")
+        script_lines.append(f"  if [ -d '{target_dir}' ]; then")
+        script_lines.append(f"    echo 'Directory {name} exists but no marker (stale/incomplete), removing...'")
+        script_lines.append(f"    rm -rf {target_dir}")
         script_lines.append("  fi")
+        script_lines.append(f"  echo 'Fresh clone of {name}...'")
+        script_lines.append(f"  git clone --depth 1 --branch {branch} {repo} {target_dir}")
+        script_lines.append(f"  touch {target_dir}/.clone_complete")
+        script_lines.append(f"  echo '{name} clone complete, marker created'")
         script_lines.append("fi")
 
         # If path specified, note it
@@ -584,16 +570,20 @@ list_db = False
                     "path": "/web/health",
                     "port": 8069
                 },
-                "initialDelaySeconds": 60,
-                "periodSeconds": 30
+                "initialDelaySeconds": 120,
+                "periodSeconds": 30,
+                "timeoutSeconds": 15,
+                "failureThreshold": 5
             },
             "readinessProbe": {
                 "httpGet": {
                     "path": "/web/health",
                     "port": 8069
                 },
-                "initialDelaySeconds": 30,
-                "periodSeconds": 10
+                "initialDelaySeconds": 60,
+                "periodSeconds": 15,
+                "timeoutSeconds": 10,
+                "failureThreshold": 6
             }
         }
     ]
