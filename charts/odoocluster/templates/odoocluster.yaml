@@ -73,6 +73,7 @@ spec:
     backup:
       enabled: true
       schedule: {{ .Values.database.backup.schedule | quote }}
+      filestoreSchedule: {{ .Values.database.backup.filestoreSchedule | default "0 3 * * *" | quote }}
       retentionPolicy: {{ .Values.database.backup.retentionPolicy | quote }}
       s3:
         endpoint: {{ .Values.database.backup.s3.endpoint | quote }}

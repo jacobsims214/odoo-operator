@@ -34,6 +34,7 @@ from handlers.cloudflare import (
     delete_cloudflare_tunnel,
     check_cloudflare_tunnel_ready
 )
+from handlers.filestore_backup import create_filestore_backup_job
 
 logger = logging.getLogger(__name__)
 
@@ -228,6 +229,26 @@ async def on_create(spec, name, namespace, logger, patch, meta, **kwargs):
             patch.status['cloudflare'] = {
                 'ready': False
             }
+
+        # =====================================================================
+        # FILESTORE BACKUP (S3)
+        # Uses same S3 config as database backups
+        # =====================================================================
+        backup_spec = db_spec.get('backup', {})
+        if backup_spec.get('enabled') and backup_spec.get('s3', {}).get('bucket'):
+            logger.info(f"Creating filestore backup job for: {name}")
+            s3_config = backup_spec.get('s3', {})
+            await create_filestore_backup_job(
+                namespace=cluster_namespace,
+                name=name,
+                schedule=backup_spec.get('filestoreSchedule', '0 3 * * *'),
+                s3_bucket=s3_config.get('bucket'),
+                s3_endpoint=s3_config.get('endpoint'),
+                s3_secret_name=s3_config.get('secretName', 'backup-s3-creds'),
+                retention_days=int(backup_spec.get('retentionPolicy', '30d').rstrip('d')),
+                owner_ref=owner_ref
+            )
+            patch.status['filestoreBackup'] = {'enabled': True}
 
         # Note: Phase 3 (Module Sync) runs via timer after pods are ready
 

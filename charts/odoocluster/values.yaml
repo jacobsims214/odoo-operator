@@ -98,7 +98,8 @@ database:
   # S3 backup configuration
   backup:
     enabled: true
-    schedule: "0 2 * * *"  # 2 AM daily
+    schedule: "0 2 * * *"  # 2 AM daily - PostgreSQL backup
+    filestoreSchedule: "0 3 * * *"  # 3 AM daily - Odoo filestore backup (1 hour after DB)
     retentionPolicy: "30d"
     s3:
       # S3 endpoint for your region (leave empty for default AWS S3)

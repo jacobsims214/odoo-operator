@@ -142,6 +142,11 @@ spec:
                         schedule:
                           type: string
                           default: "0 2 * * *"
+                          description: "Cron schedule for PostgreSQL backup"
+                        filestoreSchedule:
+                          type: string
+                          default: "0 3 * * *"
+                          description: "Cron schedule for Odoo filestore backup to S3"
                         retentionPolicy:
                           type: string
                           default: "30d"
