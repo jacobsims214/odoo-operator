@@ -111,6 +111,10 @@ addons:
 # Networking
 # =============================================================================
 networking:
+  # Disable AWS ALB Ingress - using Cloudflare Tunnel instead
+  ingress:
+    enabled: false
+  
   # Tailscale - Private tailnet access (disabled)
   tailscale:
     authSecretName: "tailscale-auth"
