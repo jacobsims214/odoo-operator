@@ -22,6 +22,8 @@ odoo:
   
   # Storage for Odoo filestore (shared across replicas via RWX or replicated)
   storage: "50Gi"
+  # Use NFS storage for homelab
+  storageClassName: "nfs-storage"
   
   # Resource limits for production workload
   resources:
@@ -59,6 +61,8 @@ odoo:
 database:
   # Storage for PostgreSQL data
   storage: "100Gi"
+  # Use NFS storage for homelab
+  storageClassName: "nfs-storage"
   
   # 3 instances for high availability (1 primary + 2 replicas)
   instances: 3
@@ -99,6 +103,8 @@ addons:
     enabled: true
     tool: "metabase"
     storage: "10Gi"
+    # Use NFS storage for homelab
+    storageClassName: "nfs-storage"
     resources:
       requests:
         cpu: "1"         # Metabase needs decent CPU for report generation
