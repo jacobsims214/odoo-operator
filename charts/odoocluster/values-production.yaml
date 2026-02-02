@@ -76,8 +76,12 @@ database:
       cpu: "2"
       memory: "8Gi"
   
-  # Backup disabled for this example
+  # Backup disabled for homelab
   backup:
+    enabled: false
+  
+  # Restore disabled - we'll restore manually from old NFS data
+  restore:
     enabled: false
 
 # =============================================================================
