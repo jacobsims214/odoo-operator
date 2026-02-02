@@ -97,7 +97,8 @@ async def on_create(spec, name, namespace, logger, patch, meta, **kwargs):
             instances=db_spec.get('instances', 1),
             resources=db_spec.get('resources', {}),
             backup=backup_spec if backup_spec.get('enabled') else None,
-            owner_ref=owner_ref
+            owner_ref=owner_ref,
+            postgres_version=db_spec.get('postgresVersion', '17')
         )
         patch.status['database'] = {
             'host': f"{name}-db-rw.{cluster_namespace}.svc.cluster.local",

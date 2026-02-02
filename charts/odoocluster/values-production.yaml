@@ -69,6 +69,10 @@ odoo:
 # Database Configuration (CloudNative-PG)
 # =============================================================================
 database:
+  # PostgreSQL 18 required - previous Odoo data was created with PG18
+  # CloudNativePG supports PG18 images from ghcr.io/cloudnative-pg/postgresql:18
+  postgresVersion: "18"
+  
   # Storage for PostgreSQL data
   storage: "100Gi"
   # Use NFS storage for homelab

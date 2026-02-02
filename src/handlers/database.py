@@ -16,7 +16,8 @@ async def create_database(
     instances: int = 1,
     resources: dict = None,
     backup: Optional[dict] = None,
-    owner_ref: Optional[dict] = None
+    owner_ref: Optional[dict] = None,
+    postgres_version: str = "17"
 ) -> None:
     """Create a CloudNative-PG PostgreSQL cluster."""
     api = client.CustomObjectsApi()
@@ -34,6 +35,7 @@ async def create_database(
     # Base cluster spec
     cluster_spec = {
         "instances": instances,
+        "imageName": f"ghcr.io/cloudnative-pg/postgresql:{postgres_version}",
         "storage": storage_spec,
         "resources": {
             "requests": {

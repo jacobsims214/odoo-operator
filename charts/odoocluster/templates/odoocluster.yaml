@@ -48,6 +48,7 @@ spec:
     storageClassName: {{ .Values.database.storageClassName | quote }}
     {{- end }}
     instances: {{ .Values.database.instances }}
+    postgresVersion: {{ .Values.database.postgresVersion | default "17" | quote }}
     {{- if .Values.database.resources }}
     resources:
       {{- if .Values.database.resources.requests }}

@@ -110,6 +110,10 @@ spec:
                 database:
                   type: object
                   properties:
+                    postgresVersion:
+                      type: string
+                      default: "17"
+                      description: "PostgreSQL major version (e.g., 17, 18)"
                     storage:
                       type: string
                       default: "20Gi"
