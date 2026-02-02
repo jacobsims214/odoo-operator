@@ -153,8 +153,9 @@ spec:
     {{- end }}
   {{- end }}
   
-  {{- if or .Values.networking.tailscale.odoo.enabled .Values.networking.tailscale.bi.enabled }}
+  {{- if or .Values.networking.tailscale.odoo.enabled .Values.networking.tailscale.bi.enabled .Values.networking.cloudflare.enabled }}
   networking:
+    {{- if or .Values.networking.tailscale.odoo.enabled .Values.networking.tailscale.bi.enabled }}
     tailscale:
       authSecretName: {{ .Values.networking.tailscale.authSecretName | quote }}
       {{- if .Values.networking.tailscale.odoo.enabled }}
@@ -171,5 +172,20 @@ spec:
         funnel: {{ .Values.networking.tailscale.bi.funnel }}
         tags: {{ .Values.networking.tailscale.bi.tags | quote }}
       {{- end }}
+    {{- end }}
+    {{- if .Values.networking.cloudflare.enabled }}
+    cloudflare:
+      enabled: true
+      tunnelSecretName: {{ .Values.networking.cloudflare.tunnelSecretName | quote }}
+      replicas: {{ .Values.networking.cloudflare.replicas | default 1 }}
+      {{- if .Values.networking.cloudflare.odoo.hostname }}
+      odoo:
+        hostname: {{ .Values.networking.cloudflare.odoo.hostname | quote }}
+      {{- end }}
+      {{- if and .Values.networking.cloudflare.bi .Values.networking.cloudflare.bi.hostname }}
+      bi:
+        hostname: {{ .Values.networking.cloudflare.bi.hostname | quote }}
+      {{- end }}
+    {{- end }}
   {{- end }}
 
