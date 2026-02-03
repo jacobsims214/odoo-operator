@@ -50,9 +50,6 @@ spec:
                     storage:
                       type: string
                       default: "10Gi"
-                    storageClassName:
-                      type: string
-                      description: "Storage class for filestore PVC (use RWX class for multi-replica)"
                     resources:
                       type: object
                       properties:
@@ -80,24 +77,15 @@ spec:
                         properties:
                           name:
                             type: string
-                            description: "Unique name for this addon repo"
                           repo:
                             type: string
-                            description: "Git repository URL"
                           branch:
                             type: string
                             default: "main"
-                            description: "Git branch to clone"
                           path:
                             type: string
-                            description: "Module name to install (when install: true)"
-                          install:
-                            type: boolean
-                            default: false
-                            description: "Auto-install the module specified in 'path'"
                           deployKeySecret:
                             type: string
-                            description: "Secret containing SSH key for private repos"
                     resources:
                       type: object
                       properties:
@@ -122,12 +110,16 @@ spec:
                 database:
                   type: object
                   properties:
+                    postgresVersion:
+                      type: string
+                      default: "17"
+                      description: "PostgreSQL major version (e.g., 17, 18)"
                     storage:
                       type: string
                       default: "20Gi"
                     storageClassName:
                       type: string
-                      description: Storage class for the PostgreSQL PVC (required on EKS Auto Mode)
+                      description: "Storage class for PostgreSQL PVCs"
                     instances:
                       type: integer
                       default: 1
@@ -243,9 +235,6 @@ spec:
                         storage:
                           type: string
                           default: "5Gi"
-                        storageClassName:
-                          type: string
-                          description: Storage class for the Metabase PVC
                         resources:
                           type: object
                           properties:

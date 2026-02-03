@@ -117,6 +117,9 @@ spec:
                     storage:
                       type: string
                       default: "20Gi"
+                    storageClassName:
+                      type: string
+                      description: "Storage class for PostgreSQL PVCs"
                     instances:
                       type: integer
                       default: 1
