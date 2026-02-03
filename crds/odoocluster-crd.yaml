@@ -50,6 +50,9 @@ spec:
                     storage:
                       type: string
                       default: "10Gi"
+                    storageClassName:
+                      type: string
+                      description: "Storage class for Odoo filestore PVC"
                     resources:
                       type: object
                       properties:
@@ -239,6 +242,9 @@ spec:
                         storage:
                           type: string
                           default: "5Gi"
+                        storageClassName:
+                          type: string
+                          description: "Storage class for Metabase PVC"
                         resources:
                           type: object
                           properties:
