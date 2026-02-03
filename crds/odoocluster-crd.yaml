@@ -86,6 +86,10 @@ spec:
                             type: string
                           deployKeySecret:
                             type: string
+                          install:
+                            type: boolean
+                            default: true
+                            description: "Whether to auto-install this module"
                     resources:
                       type: object
                       properties:
