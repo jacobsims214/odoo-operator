@@ -93,9 +93,10 @@ database:
   postgresVersion: "18"
   
   # Enable pgvector extension for semantic search / AI embeddings
-  # Uses pgvector/pgvector Docker Hub image instead of CloudNativePG image
-  # Required for simstech_assistant semantic search features
-  enablePgvector: true
+  # When true: uses -standard-trixie image (has pgvector, NO barman-cloud)
+  # When false: uses base image (has BOTH pgvector AND barman-cloud)
+  # Keep false until CloudNativePG migrates to Barman Cloud Plugin
+  enablePgvector: false
   
   # Storage size - uses gp3 by default on EKS
   storage: "100Gi"
