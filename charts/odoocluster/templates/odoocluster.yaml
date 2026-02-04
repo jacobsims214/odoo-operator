@@ -154,19 +154,35 @@ spec:
     {{- end }}
   {{- end }}
   
-  {{- if or .Values.networking.tailscale.odoo.enabled .Values.networking.tailscale.bi.enabled .Values.networking.cloudflare.enabled }}
+  {{- $tailscaleOdooEnabled := false }}
+  {{- $tailscaleBiEnabled := false }}
+  {{- $cloudflareEnabled := false }}
+  {{- if .Values.networking }}
+    {{- if .Values.networking.tailscale }}
+      {{- if .Values.networking.tailscale.odoo }}
+        {{- $tailscaleOdooEnabled = .Values.networking.tailscale.odoo.enabled }}
+      {{- end }}
+      {{- if .Values.networking.tailscale.bi }}
+        {{- $tailscaleBiEnabled = .Values.networking.tailscale.bi.enabled }}
+      {{- end }}
+    {{- end }}
+    {{- if .Values.networking.cloudflare }}
+      {{- $cloudflareEnabled = .Values.networking.cloudflare.enabled }}
+    {{- end }}
+  {{- end }}
+  {{- if or $tailscaleOdooEnabled $tailscaleBiEnabled $cloudflareEnabled }}
   networking:
-    {{- if or .Values.networking.tailscale.odoo.enabled .Values.networking.tailscale.bi.enabled }}
+    {{- if or $tailscaleOdooEnabled $tailscaleBiEnabled }}
     tailscale:
       authSecretName: {{ .Values.networking.tailscale.authSecretName | quote }}
-      {{- if .Values.networking.tailscale.odoo.enabled }}
+      {{- if $tailscaleOdooEnabled }}
       odoo:
         enabled: true
         hostname: {{ include "odoocluster.odooHostname" . | quote }}
         funnel: {{ .Values.networking.tailscale.odoo.funnel }}
         tags: {{ .Values.networking.tailscale.odoo.tags | quote }}
       {{- end }}
-      {{- if .Values.networking.tailscale.bi.enabled }}
+      {{- if $tailscaleBiEnabled }}
       bi:
         enabled: true
         hostname: {{ include "odoocluster.biHostname" . | quote }}
@@ -174,7 +190,7 @@ spec:
         tags: {{ .Values.networking.tailscale.bi.tags | quote }}
       {{- end }}
     {{- end }}
-    {{- if .Values.networking.cloudflare.enabled }}
+    {{- if $cloudflareEnabled }}
     cloudflare:
       enabled: true
       tunnelSecretName: {{ .Values.networking.cloudflare.tunnelSecretName | quote }}
