@@ -126,15 +126,51 @@ async def create_database(
             body=cluster
         )
     except ApiException as e:
-        if e.status == 409:  # Already exists - update it
-            api.patch_namespaced_custom_object(
-                group="postgresql.cnpg.io",
-                version="v1",
-                namespace=namespace,
-                plural="clusters",
-                name=f"{name}-db",
-                body=cluster
-            )
+        if e.status == 409:  # Already exists
+            # Cluster already exists - check if it's healthy and skip
+            # CloudNativePG doesn't allow changing bootstrap method, so we
+            # only patch non-bootstrap fields if needed
+            try:
+                existing = api.get_namespaced_custom_object(
+                    group="postgresql.cnpg.io",
+                    version="v1",
+                    namespace=namespace,
+                    plural="clusters",
+                    name=f"{name}-db"
+                )
+                existing_phase = existing.get('status', {}).get('phase', '')
+                
+                # If cluster is healthy, just log and continue
+                if existing_phase == 'Cluster in healthy state':
+                    kopf.info(cluster, reason="ClusterExists", 
+                              message=f"PostgreSQL cluster {name}-db already exists and is healthy, skipping update")
+                else:
+                    # Cluster exists but not healthy - only patch safe fields (no bootstrap)
+                    # Create a patch without the bootstrap section
+                    safe_patch = {
+                        "spec": {
+                            "instances": cluster_spec["instances"],
+                            "imageName": cluster_spec["imageName"],
+                            "storage": cluster_spec["storage"],
+                            "resources": cluster_spec["resources"],
+                            "postgresql": cluster_spec["postgresql"]
+                        }
+                    }
+                    if "backup" in cluster_spec:
+                        safe_patch["spec"]["backup"] = cluster_spec["backup"]
+                    
+                    api.patch_namespaced_custom_object(
+                        group="postgresql.cnpg.io",
+                        version="v1",
+                        namespace=namespace,
+                        plural="clusters",
+                        name=f"{name}-db",
+                        body=safe_patch
+                    )
+            except ApiException as get_err:
+                # If we can't get the cluster, just skip
+                kopf.info(cluster, reason="ClusterExists", 
+                          message=f"PostgreSQL cluster {name}-db exists, skipping")
         else:
             raise kopf.PermanentError(f"Failed to create database: {e}")
 
