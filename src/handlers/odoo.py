@@ -485,8 +485,10 @@ list_db = False
     # Add pip-install init container if pip packages are specified
     pip_packages = pip_packages or []
     if pip_packages:
-        # Build pip install command
-        packages_str = " ".join(pip_packages)
+        # Build pip install command - quote each package to handle version specifiers like >=
+        # e.g., "anthropic>=0.18.0" needs quotes to prevent shell interpretation
+        quoted_packages = [f"'{pkg}'" for pkg in pip_packages]
+        packages_str = " ".join(quoted_packages)
         pip_install_container = {
             "name": "pip-install",
             "image": image or f"odoo:{version}",
