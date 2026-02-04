@@ -82,8 +82,8 @@ odoo:
 # Database Configuration (CloudNative-PG)
 # =============================================================================
 database:
-  # PostgreSQL version - use "18" for Odoo 19 (beta but required for some migrations)
-  postgresVersion: "17"
+  # PostgreSQL version - use "18" for Odoo 19 (required for some migrations)
+  postgresVersion: "18"
   
   # Storage size - uses gp3 by default on EKS
   storage: "100Gi"
