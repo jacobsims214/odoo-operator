@@ -487,17 +487,17 @@ list_db = False
     if pip_packages:
         # Build pip install command - quote each package to handle version specifiers like >=
         # e.g., "anthropic>=0.18.0" needs quotes to prevent shell interpretation
-        # --break-system-packages required for Debian Bookworm (PEP 668)
+        # Install to /opt/odoo-pip so it persists (not in /var/lib/odoo which is the filestore mount)
         quoted_packages = [f"'{pkg}'" for pkg in pip_packages]
         packages_str = " ".join(quoted_packages)
         pip_install_container = {
             "name": "pip-install",
             "image": image or f"odoo:{version}",
-            "command": ["/bin/bash", "-c", f"pip install --no-cache-dir --break-system-packages {packages_str}"],
+            "command": ["/bin/bash", "-c", f"pip install --no-cache-dir --target=/opt/odoo-pip {packages_str}"],
             "volumeMounts": [
                 {
                     "name": "pip-packages",
-                    "mountPath": "/root/.local"
+                    "mountPath": "/opt/odoo-pip"
                 }
             ]
         }
@@ -526,11 +526,11 @@ list_db = False
             "mountPath": "/mnt/addons"
         })
 
-    # Mount pip packages if specified
+    # Mount pip packages if specified (same path as init container uses)
     if pip_packages:
         odoo_volume_mounts.append({
             "name": "pip-packages",
-            "mountPath": "/home/odoo/.local"
+            "mountPath": "/opt/odoo-pip"
         })
 
     # Build environment variables
@@ -577,12 +577,11 @@ list_db = False
             {"name": "ODOO_REDIS_PORT", "value": "6379"},
         ])
 
-    # Add PYTHONPATH to include pip packages
-    # Odoo container runs as user 'odoo' with home at /var/lib/odoo
+    # Add PYTHONPATH to include pip packages installed to /opt/odoo-pip
     if pip_packages:
         odoo_env.append({
             "name": "PYTHONPATH",
-            "value": "/var/lib/odoo/.local/lib/python3.12/site-packages"
+            "value": "/opt/odoo-pip"
         })
 
     containers = [
