@@ -133,25 +133,20 @@ database:
       #   --from-literal=ACCESS_KEY_ID=xxx --from-literal=SECRET_ACCESS_KEY=xxx
       secretName: "backup-s3-creds"
 
-  # Restore from existing backup (runs ONCE, then skips normal db init)
-  # Use this when migrating from Odoo.sh or another Odoo instance
-  # After successful restore, set enabled: false and redeploy
+  # Restore from CloudNativePG S3 backup (uses bootstrap.recovery)
+  # This creates the PostgreSQL cluster with recovery from existing Barman backups
+  # After successful restore, set enabled: false and redeploy to avoid re-restoring
   restore:
-    enabled: true  # Enable for initial migration from Odoo.sh
-    s3:
-      # S3 endpoint URL - leave empty for default AWS S3
-      endpoint: "https://s3.amazonaws.com"
-      # S3 bucket - same bucket used for backups
-      bucket: ""  # Set via: --set database.restore.s3.bucket=your-bucket
-      # S3 key for PostgreSQL dump (.dump or .sql)
-      # Odoo.sh exports as SQL dump
-      databaseKey: "restore/dump.sql"
-      # S3 key for filestore - can be:
-      #   - Directory path: "restore/filestore" (uses aws s3 sync)
-      #   - Tarball: "restore/filestore.tar.gz" (downloads and extracts)
-      filestoreKey: "restore/filestore"
-      # Secret with ACCESS_KEY_ID and SECRET_ACCESS_KEY (reuse backup secret)
-      secretName: "backup-s3-creds"
+    enabled: false  # Set to true when restoring from S3 backup
+    # CRITICAL: Original cluster name in the backup WAL files
+    # This MUST match the name of the cluster that created the backup
+    # Without this, recovery will fail with "wrong serverName" error
+    serverName: ""  # e.g., "avware-odoo-db"
+    # S3 path to restore from - defaults to backup.s3.bucket/name if not specified
+    s3Path: ""  # e.g., "s3://avware-odoo-backups/avware-odoo"
+    # Suffix for new backup location after restore to avoid WAL conflict
+    # New backups will go to: bucket/name-{suffix}
+    backupSuffix: "v2"  # After restore, backups go to bucket/name-v2
 
 # =============================================================================
 # Add-ons

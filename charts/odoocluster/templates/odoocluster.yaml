@@ -89,14 +89,15 @@ spec:
     {{- if .Values.database.restore.enabled }}
     restore:
       enabled: true
-      s3:
-        endpoint: {{ .Values.database.restore.s3.endpoint | quote }}
-        bucket: {{ .Values.database.restore.s3.bucket | quote }}
-        databaseKey: {{ .Values.database.restore.s3.databaseKey | quote }}
-        {{- if .Values.database.restore.s3.filestoreKey }}
-        filestoreKey: {{ .Values.database.restore.s3.filestoreKey | quote }}
-        {{- end }}
-        secretName: {{ .Values.database.restore.s3.secretName | quote }}
+      {{- if .Values.database.restore.serverName }}
+      serverName: {{ .Values.database.restore.serverName | quote }}
+      {{- end }}
+      {{- if .Values.database.restore.s3Path }}
+      s3Path: {{ .Values.database.restore.s3Path | quote }}
+      {{- end }}
+      {{- if .Values.database.restore.backupSuffix }}
+      backupSuffix: {{ .Values.database.restore.backupSuffix | quote }}
+      {{- end }}
     {{- end }}
   
   {{- if or .Values.addons.valkey.enabled .Values.addons.bi.enabled }}

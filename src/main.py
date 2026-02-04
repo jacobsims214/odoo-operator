@@ -89,6 +89,14 @@ async def on_create(spec, name, namespace, logger, patch, meta, **kwargs):
         logger.info(f"Creating PostgreSQL cluster for: {name}")
         db_spec = spec.get('database', {})
         backup_spec = db_spec.get('backup', {})
+        restore_spec = db_spec.get('restore', {})
+        
+        # If restore is enabled, log it clearly
+        if restore_spec.get('enabled'):
+            logger.info(f"RESTORE MODE: Will restore {name} from S3 backup")
+            logger.info(f"  - serverName: {restore_spec.get('serverName', f'{name}-db')}")
+            logger.info(f"  - s3Path: {restore_spec.get('s3Path', 'from backup config')}")
+        
         await create_database(
             namespace=cluster_namespace,
             name=name,
@@ -97,6 +105,7 @@ async def on_create(spec, name, namespace, logger, patch, meta, **kwargs):
             instances=db_spec.get('instances', 1),
             resources=db_spec.get('resources', {}),
             backup=backup_spec if backup_spec.get('enabled') else None,
+            restore=restore_spec if restore_spec.get('enabled') else None,
             owner_ref=owner_ref,
             postgres_version=db_spec.get('postgresVersion', '17'),
             enable_pgvector=db_spec.get('enablePgvector', False)

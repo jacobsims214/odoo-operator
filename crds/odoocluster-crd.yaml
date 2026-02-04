@@ -184,31 +184,21 @@ spec:
                               type: string
                     restore:
                       type: object
-                      description: "Restore from an existing backup (runs once, skips db init)"
+                      description: "Restore from CloudNativePG S3 backup using bootstrap.recovery"
                       properties:
                         enabled:
                           type: boolean
                           default: false
-                        s3:
-                          type: object
-                          description: "S3 location of backup files"
-                          properties:
-                            endpoint:
-                              type: string
-                              description: "S3 endpoint URL (e.g., https://s3.amazonaws.com)"
-                            bucket:
-                              type: string
-                              description: "S3 bucket name"
-                            databaseKey:
-                              type: string
-                              description: "S3 key for PostgreSQL dump file (.dump or .sql)"
-                            filestoreKey:
-                              type: string
-                              description: "S3 key for filestore archive (.tar.gz)"
-                            secretName:
-                              type: string
-                              description: "Secret with ACCESS_KEY_ID and SECRET_ACCESS_KEY"
-                              default: "backup-s3-creds"
+                          description: "Enable S3 recovery - creates DB with bootstrap.recovery instead of initdb"
+                        serverName:
+                          type: string
+                          description: "Original cluster name in backup WAL files (e.g., avware-odoo-db). CRITICAL for recovery."
+                        s3Path:
+                          type: string
+                          description: "S3 path to restore from (e.g., s3://bucket/path). Defaults to backup.s3.bucket/name"
+                        backupSuffix:
+                          type: string
+                          description: "Suffix for new backup path after restore (e.g., 'v2' -> bucket/name-v2). Avoids WAL conflict."
                 addons:
                   type: object
                   properties:

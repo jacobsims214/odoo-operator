@@ -1,5 +1,10 @@
 """
 Database handler - Creates CloudNative-PG PostgreSQL clusters.
+
+Supports:
+- Fresh database creation (bootstrap.initdb)
+- S3 backup configuration
+- S3 restore/recovery (bootstrap.recovery)
 """
 
 from kubernetes import client
@@ -16,11 +21,20 @@ async def create_database(
     instances: int = 1,
     resources: dict = None,
     backup: Optional[dict] = None,
+    restore: Optional[dict] = None,
     owner_ref: Optional[dict] = None,
     postgres_version: str = "17",
     enable_pgvector: bool = False
 ) -> None:
-    """Create a CloudNative-PG PostgreSQL cluster."""
+    """
+    Create a CloudNative-PG PostgreSQL cluster.
+    
+    Args:
+        restore: Optional restore config with:
+            - enabled: bool - Whether to restore from S3
+            - serverName: str - Original cluster name in backup (e.g., 'avware-odoo-db')
+            - s3Path: str - S3 path to restore from (e.g., 's3://bucket/path')
+    """
     api = client.CustomObjectsApi()
 
     # Build resource requirements
@@ -34,13 +48,10 @@ async def create_database(
         storage_spec["storageClass"] = storage_class_name
 
     # Determine PostgreSQL image
-    # Use CloudNativePG standard image (includes pgvector) if enabled
+    # CloudNativePG base images include barman-cloud tools needed for S3 backup/restore
+    # The base image also includes pgvector extension
     # See: https://github.com/cloudnative-pg/postgres-containers
-    if enable_pgvector:
-        # CloudNativePG standard images include pgvector, pgaudit, etc.
-        image_name = f"ghcr.io/cloudnative-pg/postgresql:{postgres_version}-standard-trixie"
-    else:
-        image_name = f"ghcr.io/cloudnative-pg/postgresql:{postgres_version}"
+    image_name = f"ghcr.io/cloudnative-pg/postgresql:{postgres_version}"
 
     # Base cluster spec
     cluster_spec = {
@@ -62,21 +73,86 @@ async def create_database(
                 "max_connections": "200",
                 "shared_buffers": "256MB"
             }
-        },
-        "bootstrap": {
+        }
+    }
+
+    # Determine bootstrap method: restore from S3 or fresh initdb
+    restore_enabled = restore and restore.get('enabled', False)
+    
+    if restore_enabled:
+        # RESTORE MODE: Bootstrap from S3 backup
+        s3_config = backup.get('s3', {}) if backup else {}
+        secret_name = s3_config.get('secretName', 'backup-s3-creds')
+        
+        # The serverName MUST match the original cluster's name in the backup
+        # This is critical - CloudNativePG uses this to find the correct WAL files
+        original_server_name = restore.get('serverName', f"{name}-db")
+        
+        # The restore path - where the backup was stored
+        restore_path = restore.get('s3Path')
+        if not restore_path and s3_config.get('bucket'):
+            # Default: use the backup path (bucket/name)
+            restore_path = f"s3://{s3_config['bucket']}/{name}"
+        
+        if not restore_path:
+            raise kopf.PermanentError("Restore enabled but no s3Path or backup.s3.bucket specified")
+        
+        # Build external cluster reference for recovery source
+        external_cluster_config = {
+            "serverName": original_server_name,
+            "destinationPath": restore_path,
+            "s3Credentials": {
+                "accessKeyId": {
+                    "name": secret_name,
+                    "key": "ACCESS_KEY_ID"
+                },
+                "secretAccessKey": {
+                    "name": secret_name,
+                    "key": "SECRET_ACCESS_KEY"
+                }
+            }
+        }
+        
+        # Add endpoint if specified
+        if s3_config.get('endpoint'):
+            external_cluster_config["endpointURL"] = s3_config['endpoint']
+        
+        cluster_spec["bootstrap"] = {
+            "recovery": {
+                "source": "restore-source"
+            }
+        }
+        
+        cluster_spec["externalClusters"] = [{
+            "name": "restore-source",
+            "barmanObjectStore": external_cluster_config
+        }]
+        
+        kopf.info({}, reason="RestoreMode", 
+                  message=f"Creating cluster {name}-db with S3 recovery from {restore_path} (serverName={original_server_name})")
+    else:
+        # FRESH MODE: Bootstrap with initdb
+        cluster_spec["bootstrap"] = {
             "initdb": {
                 "database": "odoo",
                 "owner": "odoo"
             }
         }
-    }
 
-    # Add backup configuration if enabled
+    # Add backup configuration for ongoing backups (separate from restore)
     if backup:
         s3_config = backup.get('s3', {})
         if s3_config.get('bucket'):
+            # For NEW backups after restore, use a different path to avoid
+            # "Expected empty archive" error
+            backup_suffix = restore.get('backupSuffix', '') if restore_enabled else ''
+            if backup_suffix:
+                backup_path = f"s3://{s3_config['bucket']}/{name}-{backup_suffix}"
+            else:
+                backup_path = f"s3://{s3_config['bucket']}/{name}"
+            
             barman_config = {
-                "destinationPath": f"s3://{s3_config['bucket']}/{name}",
+                "destinationPath": backup_path,
                 "s3Credentials": {
                     "accessKeyId": {
                         "name": s3_config.get('secretName', 'backup-s3-creds'),
@@ -96,8 +172,6 @@ async def create_database(
                 "barmanObjectStore": barman_config,
                 "retentionPolicy": backup.get('retentionPolicy', '30d')
             }
-
-            # Note: ScheduledBackup is a separate CR, we'll create it below
 
     cluster_metadata = {
         "name": f"{name}-db",
