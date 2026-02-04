@@ -55,6 +55,12 @@ odoo:
       repo: "git@github.com:Lifestyle-Aviation-Systems/enterprise.git"
       branch: "19.0"
       deployKeySecret: "odoo-enterprise-deploy-key"
+
+    - name: "assistant"
+      repo: "git@github.com:Sims-Tech-38/simstech_assistant.git"
+      branch: "19.0"
+      deployKeySecret: "odoo-assistant-deploy-key"
+      install: false
     
     # OCA Web Responsive - Better mobile UI
     - name: "oca-web"
