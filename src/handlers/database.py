@@ -34,10 +34,11 @@ async def create_database(
         storage_spec["storageClass"] = storage_class_name
 
     # Determine PostgreSQL image
-    # Use pgvector image if enabled, otherwise standard CloudNativePG image
+    # Use CloudNativePG standard image (includes pgvector) if enabled
+    # See: https://github.com/cloudnative-pg/postgres-containers
     if enable_pgvector:
-        # Official pgvector image: https://hub.docker.com/r/pgvector/pgvector
-        image_name = f"pgvector/pgvector:pg{postgres_version}-trixie"
+        # CloudNativePG standard images include pgvector, pgaudit, etc.
+        image_name = f"ghcr.io/cloudnative-pg/postgresql:{postgres_version}-standard-trixie"
     else:
         image_name = f"ghcr.io/cloudnative-pg/postgresql:{postgres_version}"
 
