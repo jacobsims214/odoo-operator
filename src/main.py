@@ -153,31 +153,42 @@ async def on_create(spec, name, namespace, logger, patch, meta, **kwargs):
 
         # =====================================================================
         # PHASE 1: DATABASE INITIALIZATION JOB
+        # Skip if using CloudNativePG S3 restore - database already has data
         # =====================================================================
-        logger.info(f"Phase 1: Creating DB init job for: {name}")
         odoo_spec = spec.get('odoo', {})
         version = odoo_spec.get('version', '17.0')
         odoo_image = odoo_spec.get('image') or f"odoo:{version}"
         odoo_addons = odoo_spec.get('addons', [])
-        db_restore = db_spec.get('restore')
-
-        await create_db_init_job(
-            namespace=cluster_namespace,
-            name=name,
-            odoo_image=odoo_image,
-            db_host=f"{name}-db-rw",
-            db_secret=f"{name}-db-app",
-            admin_secret_name=f"{name}-odoo-admin",
-            addons=odoo_addons,
-            storage_class_name=odoo_spec.get('storageClassName'),
-            restore=db_restore,
-            owner_ref=owner_ref
-        )
-
-        patch.status['dbInit'] = {
-            'jobName': f"{name}-db-init",
-            'status': 'running'
-        }
+        
+        # Check if we're restoring from CloudNativePG S3 backup
+        restore_from_s3 = restore_spec.get('enabled', False)
+        
+        if restore_from_s3:
+            # SKIP db-init when restoring from S3 - database already has all data
+            logger.info(f"Phase 1: SKIPPING DB init - restoring from S3 backup")
+            patch.status['dbInit'] = {
+                'jobName': f"{name}-db-init",
+                'status': 'skipped-s3-restore'
+            }
+        else:
+            # Normal flow: run db-init job to initialize fresh database
+            logger.info(f"Phase 1: Creating DB init job for: {name}")
+            await create_db_init_job(
+                namespace=cluster_namespace,
+                name=name,
+                odoo_image=odoo_image,
+                db_host=f"{name}-db-rw",
+                db_secret=f"{name}-db-app",
+                admin_secret_name=f"{name}-odoo-admin",
+                addons=odoo_addons,
+                storage_class_name=odoo_spec.get('storageClassName'),
+                restore=None,  # Old file-based restore removed
+                owner_ref=owner_ref
+            )
+            patch.status['dbInit'] = {
+                'jobName': f"{name}-db-init",
+                'status': 'running'
+            }
 
         # =====================================================================
         # PHASE 2: ODOO DEPLOYMENT (Scalable)
@@ -347,25 +358,38 @@ async def reconcile_status(spec, name, namespace, logger, patch, status, **kwarg
         # CHECK DB INIT JOB STATUS
         # =====================================================================
         if current_phase == 'Initializing':
-            job_status = await check_db_init_job_status(cluster_namespace, name)
+            db_init_status = status.get('dbInit', {}).get('status', '')
+            
+            # If S3 restore was used, skip db-init check and wait for DB ready
+            if db_init_status == 'skipped-s3-restore':
+                # Check if database is ready (restored from S3)
+                db_ready = await check_database_ready(cluster_namespace, name)
+                if db_ready:
+                    logger.info(f"S3 restore complete, database ready for: {name}")
+                    patch.status['phase'] = 'Ready'
+                    patch.status['message'] = 'Database restored from S3, cluster ready'
+                    patch.status['lastUpdated'] = datetime.now(timezone.utc).isoformat()
+            else:
+                # Normal flow: check db-init job status
+                job_status = await check_db_init_job_status(cluster_namespace, name)
 
-            if job_status['completed']:
-                logger.info(f"DB init job completed for: {name}")
-                patch.status['dbInit'] = {
-                    'jobName': f"{name}-db-init",
-                    'status': 'completed'
-                }
-                patch.status['phase'] = 'Ready'
-                patch.status['message'] = 'Database initialized, cluster ready'
-                patch.status['lastUpdated'] = datetime.now(timezone.utc).isoformat()
+                if job_status['completed']:
+                    logger.info(f"DB init job completed for: {name}")
+                    patch.status['dbInit'] = {
+                        'jobName': f"{name}-db-init",
+                        'status': 'completed'
+                    }
+                    patch.status['phase'] = 'Ready'
+                    patch.status['message'] = 'Database initialized, cluster ready'
+                    patch.status['lastUpdated'] = datetime.now(timezone.utc).isoformat()
 
-            elif job_status['failed']:
-                logger.error(f"DB init job failed for: {name}")
-                patch.status['dbInit'] = {
-                    'jobName': f"{name}-db-init",
-                    'status': 'failed'
-                }
-                patch.status['phase'] = 'Error'
+                elif job_status['failed']:
+                    logger.error(f"DB init job failed for: {name}")
+                    patch.status['dbInit'] = {
+                        'jobName': f"{name}-db-init",
+                        'status': 'failed'
+                    }
+                    patch.status['phase'] = 'Error'
                 patch.status['message'] = 'Database initialization failed'
                 patch.status['lastUpdated'] = datetime.now(timezone.utc).isoformat()
 
