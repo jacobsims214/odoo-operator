@@ -83,8 +83,12 @@ def get_modules_to_install(addons: List[dict]) -> List[str]:
 
 
 def build_addons_path(addons: List[dict]) -> str:
-    """Build the addons_path for Odoo CLI."""
+    """Build the addons_path for Odoo CLI.
+    
+    Adds /mnt/addons as base path for single-module repos.
+    """
     paths = ["/mnt/extra-addons"]
+    paths.append("/mnt/addons")  # Base path for single-module repos
     for addon in addons:
         paths.append(f"/mnt/addons/{addon['name']}")
     return ",".join(paths)
