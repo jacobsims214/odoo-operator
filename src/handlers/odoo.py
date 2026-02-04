@@ -578,10 +578,11 @@ list_db = False
         ])
 
     # Add PYTHONPATH to include pip packages
+    # Odoo container runs as user 'odoo' with home at /var/lib/odoo
     if pip_packages:
         odoo_env.append({
             "name": "PYTHONPATH",
-            "value": "/home/odoo/.local/lib/python3.12/site-packages:$PYTHONPATH"
+            "value": "/var/lib/odoo/.local/lib/python3.12/site-packages"
         })
 
     containers = [
