@@ -56,7 +56,7 @@ odoo:
       branch: "19.0"
       deployKeySecret: "odoo-enterprise-deploy-key"
 
-    - name: "assistant"
+    - name: "simstech_assistant"
       repo: "git@github.com:Sims-Tech-38/simstech_assistant.git"
       branch: "main"
       deployKeySecret: "odoo-assistant-deploy-key"
