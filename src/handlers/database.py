@@ -17,7 +17,8 @@ async def create_database(
     resources: dict = None,
     backup: Optional[dict] = None,
     owner_ref: Optional[dict] = None,
-    postgres_version: str = "17"
+    postgres_version: str = "17",
+    enable_pgvector: bool = False
 ) -> None:
     """Create a CloudNative-PG PostgreSQL cluster."""
     api = client.CustomObjectsApi()
@@ -32,10 +33,18 @@ async def create_database(
     if storage_class_name:
         storage_spec["storageClass"] = storage_class_name
 
+    # Determine PostgreSQL image
+    # Use pgvector image if enabled, otherwise standard CloudNativePG image
+    if enable_pgvector:
+        # Official pgvector image: https://hub.docker.com/r/pgvector/pgvector
+        image_name = f"pgvector/pgvector:pg{postgres_version}-trixie"
+    else:
+        image_name = f"ghcr.io/cloudnative-pg/postgresql:{postgres_version}"
+
     # Base cluster spec
     cluster_spec = {
         "instances": instances,
-        "imageName": f"ghcr.io/cloudnative-pg/postgresql:{postgres_version}",
+        "imageName": image_name,
         "storage": storage_spec,
         "resources": {
             "requests": {

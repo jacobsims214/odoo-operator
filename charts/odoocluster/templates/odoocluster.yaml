@@ -37,6 +37,10 @@ spec:
         {{- end }}
       {{- end }}
     {{- end }}
+    {{- if .Values.odoo.pipPackages }}
+    pipPackages:
+      {{- toYaml .Values.odoo.pipPackages | nindent 6 }}
+    {{- end }}
     {{- if .Values.odoo.addons }}
     addons:
       {{- toYaml .Values.odoo.addons | nindent 6 }}
@@ -49,6 +53,7 @@ spec:
     {{- end }}
     instances: {{ .Values.database.instances }}
     postgresVersion: {{ .Values.database.postgresVersion | default "17" | quote }}
+    enablePgvector: {{ .Values.database.enablePgvector | default false }}
     {{- if .Values.database.resources }}
     resources:
       {{- if .Values.database.resources.requests }}

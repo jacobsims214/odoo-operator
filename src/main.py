@@ -98,7 +98,8 @@ async def on_create(spec, name, namespace, logger, patch, meta, **kwargs):
             resources=db_spec.get('resources', {}),
             backup=backup_spec if backup_spec.get('enabled') else None,
             owner_ref=owner_ref,
-            postgres_version=db_spec.get('postgresVersion', '17')
+            postgres_version=db_spec.get('postgresVersion', '17'),
+            enable_pgvector=db_spec.get('enablePgvector', False)
         )
         patch.status['database'] = {
             'host': f"{name}-db-rw.{cluster_namespace}.svc.cluster.local",
@@ -187,6 +188,7 @@ async def on_create(spec, name, namespace, logger, patch, meta, **kwargs):
             storage_class_name=odoo_spec.get('storageClassName'),
             resources=odoo_spec.get('resources', {}),
             addons=odoo_spec.get('addons', []),
+            pip_packages=odoo_spec.get('pipPackages', []),
             db_host=f"{name}-db-rw",
             db_secret=f"{name}-db-app",
             valkey_enabled=valkey_spec.get('enabled', False),

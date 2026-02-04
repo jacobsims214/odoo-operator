@@ -46,6 +46,13 @@ odoo:
       cpu: "4"
       memory: "16Gi"
   
+  # Additional pip packages to install in Odoo container
+  # Installed via init container before Odoo starts
+  pipPackages:
+    - "anthropic>=0.18.0"  # Required for simstech_assistant AI module
+    - "numpy"              # Required for pgvector Python bindings
+    - "pgvector"           # PostgreSQL vector similarity search bindings
+  
   # Addon modules - cloned before restore/init
   addons:
     # Odoo Enterprise (private fork)
@@ -84,6 +91,11 @@ odoo:
 database:
   # PostgreSQL version - use "18" for Odoo 19 (required for some migrations)
   postgresVersion: "18"
+  
+  # Enable pgvector extension for semantic search / AI embeddings
+  # Uses pgvector/pgvector Docker Hub image instead of CloudNativePG image
+  # Required for simstech_assistant semantic search features
+  enablePgvector: true
   
   # Storage size - uses gp3 by default on EKS
   storage: "100Gi"

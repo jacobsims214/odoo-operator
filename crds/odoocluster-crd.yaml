@@ -70,6 +70,11 @@ spec:
                               x-kubernetes-int-or-string: true
                             memory:
                               x-kubernetes-int-or-string: true
+                    pipPackages:
+                      type: array
+                      description: "Additional pip packages to install in Odoo container"
+                      items:
+                        type: string
                     addons:
                       type: array
                       items:
@@ -121,6 +126,10 @@ spec:
                       type: string
                       default: "17"
                       description: "PostgreSQL major version (e.g., 17, 18)"
+                    enablePgvector:
+                      type: boolean
+                      default: false
+                      description: "Enable pgvector extension for vector/embedding storage"
                     storage:
                       type: string
                       default: "20Gi"

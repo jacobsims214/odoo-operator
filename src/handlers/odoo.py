@@ -212,6 +212,7 @@ async def create_odoo(
     storage_class_name: Optional[str] = None,
     resources: dict = None,
     addons: List[dict] = None,
+    pip_packages: List[str] = None,
     db_host: str = None,
     db_secret: str = None,
     valkey_enabled: bool = False,
@@ -481,6 +482,24 @@ list_db = False
                 "readOnly": True
             })
 
+    # Add pip-install init container if pip packages are specified
+    pip_packages = pip_packages or []
+    if pip_packages:
+        # Build pip install command
+        packages_str = " ".join(pip_packages)
+        pip_install_container = {
+            "name": "pip-install",
+            "image": image or f"odoo:{version}",
+            "command": ["/bin/bash", "-c", f"pip install --no-cache-dir --user {packages_str}"],
+            "volumeMounts": [
+                {
+                    "name": "pip-packages",
+                    "mountPath": "/root/.local"
+                }
+            ]
+        }
+        init_containers.append(pip_install_container)
+
     # NOTE: Database initialization is now handled by a separate Job (db_init.py)
     # This allows pods to scale freely without race conditions.
     # The Job runs ONCE before any pods are created.
@@ -502,6 +521,13 @@ list_db = False
         odoo_volume_mounts.append({
             "name": "addons",
             "mountPath": "/mnt/addons"
+        })
+
+    # Mount pip packages if specified
+    if pip_packages:
+        odoo_volume_mounts.append({
+            "name": "pip-packages",
+            "mountPath": "/home/odoo/.local"
         })
 
     # Build environment variables
@@ -547,6 +573,13 @@ list_db = False
             {"name": "ODOO_REDIS_HOST", "value": valkey_host},
             {"name": "ODOO_REDIS_PORT", "value": "6379"},
         ])
+
+    # Add PYTHONPATH to include pip packages
+    if pip_packages:
+        odoo_env.append({
+            "name": "PYTHONPATH",
+            "value": "/home/odoo/.local/lib/python3.12/site-packages:$PYTHONPATH"
+        })
 
     containers = [
         {
@@ -642,6 +675,13 @@ list_db = False
                     "defaultMode": 0o400
                 }
             })
+
+    # Add pip-packages volume if pip packages are specified
+    if pip_packages:
+        volumes.append({
+            "name": "pip-packages",
+            "emptyDir": {}
+        })
 
     if tailscale:
         volumes.extend(get_tailscale_volumes(f"{name}-odoo"))
