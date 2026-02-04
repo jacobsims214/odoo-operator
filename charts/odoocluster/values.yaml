@@ -127,26 +127,23 @@ database:
       # S3 endpoint for your region (leave empty for default AWS S3)
       endpoint: ""
       # S3 bucket name for backups
-      bucket: ""  # Set via --set database.backup.s3.bucket=your-backup-bucket
+      bucket: "avware-odoo-backups"
       # Secret containing ACCESS_KEY_ID and SECRET_ACCESS_KEY
-      # Create with: kubectl create secret generic backup-s3-creds \
-      #   --from-literal=ACCESS_KEY_ID=xxx --from-literal=SECRET_ACCESS_KEY=xxx
       secretName: "backup-s3-creds"
 
   # Restore from CloudNativePG S3 backup (uses bootstrap.recovery)
   # This creates the PostgreSQL cluster with recovery from existing Barman backups
-  # After successful restore, set enabled: false and redeploy to avoid re-restoring
+  # Restore only happens on initial cluster creation - safe to leave enabled
   restore:
-    enabled: false  # Set to true when restoring from S3 backup
+    enabled: true  # Enable S3 recovery for avware-odoo
     # CRITICAL: Original cluster name in the backup WAL files
     # This MUST match the name of the cluster that created the backup
-    # Without this, recovery will fail with "wrong serverName" error
-    serverName: ""  # e.g., "avware-odoo-db"
-    # S3 path to restore from - defaults to backup.s3.bucket/name if not specified
-    s3Path: ""  # e.g., "s3://avware-odoo-backups/avware-odoo"
+    serverName: "avware-odoo-db"
+    # S3 path to restore from
+    s3Path: "s3://avware-odoo-backups/avware-odoo"
     # Suffix for new backup location after restore to avoid WAL conflict
     # New backups will go to: bucket/name-{suffix}
-    backupSuffix: "v2"  # After restore, backups go to bucket/name-v2
+    backupSuffix: "v2"
 
 # =============================================================================
 # Add-ons
