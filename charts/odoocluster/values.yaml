@@ -52,6 +52,7 @@ odoo:
     - "anthropic>=0.18.0"  # Required for simstech_assistant AI module
     - "numpy"              # Required for pgvector Python bindings
     - "pgvector"           # PostgreSQL vector similarity search bindings
+    - "croniter>=1.4.0"    # Required for croniter Python bindings
   
   # Addon modules - cloned before restore/init
   addons:
