@@ -15,23 +15,27 @@ from .tailscale import (
     get_tailscale_volumes,
     create_tailscale_resources,
     delete_tailscale_resources,
-    get_tailscale_rbac
+    get_tailscale_rbac,
 )
 
 
 def generate_password(length: int = 32) -> str:
     """Generate a secure random password."""
     alphabet = string.ascii_letters + string.digits
-    return ''.join(secrets.choice(alphabet) for _ in range(length))
+    return "".join(secrets.choice(alphabet) for _ in range(length))
 
 
 def build_git_clone_script(addons: List[dict]) -> str:
-    """Build a shell script to clone all addon repositories.
+    """Build a shell script to clone or update all addon repositories.
 
-    Handles concurrent pod starts by:
-    1. Using a lock file to serialize git operations
-    2. Removing stale git lock files
-    3. Skipping update if repo is already present (pods don't need latest on every restart)
+    On every pod start the script:
+    1. Acquires a lock so multiple pods don't race on the shared PVC.
+    2. For each addon:
+       - If no local clone exists  → fresh clone.
+       - If local clone exists     → compare local HEAD SHA against the remote
+         branch tip (via git ls-remote, no full fetch needed).
+         * SHAs match  → already up-to-date, nothing to do.
+         * SHAs differ → pull the latest commits so the pod runs new code.
     """
     script_lines = [
         "#!/bin/sh",
@@ -50,97 +54,95 @@ def build_git_clone_script(addons: List[dict]) -> str:
         "# Lock file for serializing git operations across pods",
         "LOCK_FILE=/mnt/addons/.clone.lock",
         "",
-        "# Function to clean up stale git locks",
+        "# Remove stale git index locks left by crashed processes",
         "cleanup_git_locks() {",
         "  local dir=$1",
-        "  if [ -f \"$dir/.git/index.lock\" ]; then",
-        "    echo \"Removing stale git lock: $dir/.git/index.lock\"",
-        "    rm -f \"$dir/.git/index.lock\"",
+        '  if [ -f "$dir/.git/index.lock" ]; then',
+        '    echo "[git] Removing stale index lock: $dir/.git/index.lock"',
+        '    rm -f "$dir/.git/index.lock"',
         "  fi",
         "}",
         "",
-        "# Wait for any other clone operations to finish (max 45 minutes)",
-        "# The enterprise repo is large and can take 25+ minutes on EFS",
+        "# Wait for any other pod's clone/update to finish (max 45 minutes)",
         "wait_for_lock() {",
         "  local count=0",
-        "  local max_wait=2700",  # 45 minutes
-        "  while [ -f \"$LOCK_FILE\" ] && [ $count -lt $max_wait ]; do",
-        "    echo \"Waiting for other clone operation to finish... ($count/$max_wait seconds)\"",
+        "  local max_wait=2700",
+        '  while [ -f "$LOCK_FILE" ] && [ $count -lt $max_wait ]; do',
+        '    echo "[lock] Waiting for other operation to finish... ($count/$max_wait s)"',
         "    sleep 10",
         "    count=$((count + 10))",
         "  done",
-        "  if [ -f \"$LOCK_FILE\" ]; then",
-        "    echo \"Lock still held after $max_wait seconds, checking if stale...\"",
-        "    # Only remove if lock file is older than 60 minutes (truly stale)",
-        "    find \"$LOCK_FILE\" -mmin +60 -delete 2>/dev/null || true",
+        '  if [ -f "$LOCK_FILE" ]; then',
+        '    echo "[lock] Still held after ${max_wait}s, checking if stale..."',
+        '    find "$LOCK_FILE" -mmin +60 -delete 2>/dev/null || true',
         "  fi",
         "}",
         "",
         "# Acquire lock",
         "wait_for_lock",
-        "echo $$ > \"$LOCK_FILE\"",
+        'echo $$ > "$LOCK_FILE"',
         "trap 'rm -f $LOCK_FILE' EXIT",
         "",
     ]
 
     for addon in addons:
-        name = addon['name']
-        repo = addon['repo']
-        branch = addon.get('branch', 'main')
-        path = addon.get('path', '')
-        deploy_key_secret = addon.get('deployKeySecret')
+        name = addon["name"]
+        repo = addon["repo"]
+        branch = addon.get("branch", "main")
+        path = addon.get("path", "")
+        deploy_key_secret = addon.get("deployKeySecret")
 
         target_dir = f"/mnt/addons/{name}"
 
-        script_lines.append(f"echo 'Processing addon: {name}'")
+        script_lines.append(f"# ── Addon: {name} ──────────────────────────────────────────")
+        script_lines.append(f"echo '[addon] Processing: {name}  branch={branch}'")
 
-        # If private repo with deploy key
         if deploy_key_secret:
             key_path = f"/keys/{deploy_key_secret}/ssh-privatekey"
             script_lines.append(f"export GIT_SSH_COMMAND='ssh -i {key_path} -o StrictHostKeyChecking=no'")
 
-        # Check if repo exists and clone is TRULY complete
-        # We use a .clone_complete marker file created after successful clone
-        script_lines.append(f"CLONE_MARKER='{target_dir}/.clone_complete'")
-        script_lines.append("")
-        script_lines.append("# If marker exists, clone is complete - just verify branch")
-        script_lines.append("if [ -f \"$CLONE_MARKER\" ]; then")
-        script_lines.append(f"  echo 'Repo {name} already cloned (marker exists), checking branch...'")
-        script_lines.append(f"  cd {target_dir}")
-        script_lines.append(f"  cleanup_git_locks {target_dir}")
-        script_lines.append("  CURRENT_BRANCH=$(git branch --show-current 2>/dev/null || echo 'unknown')")
-        script_lines.append(f"  if [ \"$CURRENT_BRANCH\" = \"{branch}\" ]; then")
-        script_lines.append(f"    echo 'Already on branch {branch}, skipping update'")
-        script_lines.append("  else")
-        script_lines.append(f"    echo 'Switching to branch {branch}'")
-        script_lines.append(f"    git fetch origin {branch} --depth 1 || true")
-        script_lines.append(f"    git checkout {branch} || git checkout -b {branch} origin/{branch}")
-        script_lines.append("  fi")
-        script_lines.append("else")
-        script_lines.append("  # No marker - we have the lock, so either stale data or needs fresh clone")
-        script_lines.append("  # Since WE hold the lock, no other pod is cloning - this is stale/incomplete")
-        script_lines.append(f"  if [ -d '{target_dir}' ]; then")
-        script_lines.append(f"    echo 'Directory {name} exists but no marker (stale/incomplete), removing...'")
-        script_lines.append(f"    rm -rf {target_dir}")
-        script_lines.append("  fi")
-        script_lines.append(f"  echo 'Fresh clone of {name}...'")
-        script_lines.append(f"  git clone --depth 1 --branch {branch} {repo} {target_dir}")
-        script_lines.append(f"  touch {target_dir}/.clone_complete")
-        script_lines.append(f"  echo '{name} clone complete, marker created'")
-        script_lines.append("fi")
+        script_lines.extend(
+            [
+                f"if [ ! -d '{target_dir}/.git' ]; then",
+                f"  # ── No local clone found — fresh clone",
+                f"  if [ -d '{target_dir}' ]; then",
+                f"    echo '[addon] Stale/incomplete directory found, removing...'",
+                f"    rm -rf {target_dir}",
+                f"  fi",
+                f"  echo '[addon] Fresh clone of {name}...'",
+                f"  git clone --depth 1 --branch {branch} {repo} {target_dir}",
+                f"  LOCAL_SHA=$(git -C {target_dir} rev-parse HEAD)",
+                f'  echo "[addon] Cloned {name} at $LOCAL_SHA"',
+                "else",
+                f"  # ── Local clone exists — compare SHAs",
+                f"  cleanup_git_locks {target_dir}",
+                f"  LOCAL_SHA=$(git -C {target_dir} rev-parse HEAD 2>/dev/null || echo 'unknown')",
+                f'  echo "[addon] Local  SHA: $LOCAL_SHA"',
+                f"  REMOTE_SHA=$(git ls-remote {repo} refs/heads/{branch} 2>/dev/null | cut -f1 || echo 'unknown')",
+                f'  echo "[addon] Remote SHA: $REMOTE_SHA"',
+                '  if [ "$LOCAL_SHA" = "$REMOTE_SHA" ] && [ "$LOCAL_SHA" != \'unknown\' ]; then',
+                f"    echo '[addon] {name} is up-to-date, nothing to do.'",
+                "  else",
+                f"    echo '[addon] {name} is behind remote — pulling latest...'",
+                f"    git -C {target_dir} fetch origin {branch} --depth 1",
+                f"    git -C {target_dir} checkout -B {branch} FETCH_HEAD",
+                f"    NEW_SHA=$(git -C {target_dir} rev-parse HEAD)",
+                f'    echo "[addon] Updated {name}: $LOCAL_SHA -> $NEW_SHA"',
+                "  fi",
+                "fi",
+            ]
+        )
 
-        # If path specified, note it
         if path:
-            script_lines.append(f"# Module to install: {path}")
+            script_lines.append(f"# Module path: {path}")
 
         script_lines.append("")
 
-        # Clear SSH command for next iteration
         if deploy_key_secret:
             script_lines.append("unset GIT_SSH_COMMAND")
             script_lines.append("")
 
-    script_lines.append("echo 'All addons processed successfully!'")
+    script_lines.append("echo '[addons] All addons processed successfully!'")
     script_lines.append("ls -la /mnt/addons/")
 
     return "\n".join(script_lines)
@@ -157,7 +159,7 @@ def build_addons_path(addons: List[dict]) -> str:
     paths.append("/mnt/addons")  # Base path for single-module repos
 
     for addon in addons:
-        name = addon['name']
+        name = addon["name"]
         # Add repo root for multi-module repos (like enterprise, OCA repos)
         # Single-module repos will be discovered via /mnt/addons base path
         paths.append(f"/mnt/addons/{name}")
@@ -166,12 +168,7 @@ def build_addons_path(addons: List[dict]) -> str:
 
 
 def compute_config_hash(
-    version: str,
-    image: Optional[str],
-    addons: List[dict],
-    resources: dict,
-    db_host: str,
-    tailscale: Optional[dict]
+    version: str, image: Optional[str], addons: List[dict], resources: dict, db_host: str, tailscale: Optional[dict]
 ) -> str:
     """Compute a hash of the configuration to trigger pod restarts on changes."""
     config = {
@@ -180,7 +177,7 @@ def compute_config_hash(
         "addons": addons,
         "resources": resources,
         "db_host": db_host,
-        "tailscale": tailscale
+        "tailscale": tailscale,
     }
     config_json = json.dumps(config, sort_keys=True)
     return hashlib.sha256(config_json.encode()).hexdigest()[:16]
@@ -192,12 +189,12 @@ def build_owner_references(owner_ref: Optional[dict]) -> Optional[list]:
         return None
     return [
         client.V1OwnerReference(
-            api_version=owner_ref.get('apiVersion'),
-            kind=owner_ref.get('kind'),
-            name=owner_ref.get('name'),
-            uid=owner_ref.get('uid'),
-            controller=owner_ref.get('controller', True),
-            block_owner_deletion=owner_ref.get('blockOwnerDeletion', True)
+            api_version=owner_ref.get("apiVersion"),
+            kind=owner_ref.get("kind"),
+            name=owner_ref.get("name"),
+            uid=owner_ref.get("uid"),
+            controller=owner_ref.get("controller", True),
+            block_owner_deletion=owner_ref.get("blockOwnerDeletion", True),
         )
     ]
 
@@ -219,7 +216,7 @@ async def create_odoo(
     valkey_host: Optional[str] = None,
     tailscale: Optional[dict] = None,
     tailscale_auth_secret: str = "tailscale-auth",
-    owner_ref: Optional[dict] = None
+    owner_ref: Optional[dict] = None,
 ) -> None:
     """Create Odoo deployment with all related resources."""
     core_api = client.CoreV1Api()
@@ -228,8 +225,8 @@ async def create_odoo(
 
     odoo_image = image or f"odoo:{version}"
     res = resources or {}
-    requests = res.get('requests', {})
-    limits = res.get('limits', {})
+    requests = res.get("requests", {})
+    limits = res.get("limits", {})
     addons = addons or []
 
     # Ensure resource values are strings (Kubernetes requires string quantities)
@@ -250,8 +247,8 @@ async def create_odoo(
             labels={
                 "app.kubernetes.io/managed-by": "odoo.simstech.cloud-operator",
                 "odoo.simstech.cloud/cluster": name,
-                "odoo.simstech.cloud/component": "odoo"
-            }
+                "odoo.simstech.cloud/component": "odoo",
+            },
         )
     )
 
@@ -264,9 +261,7 @@ async def create_odoo(
     # Create PVC for filestore
     pvc_spec = client.V1PersistentVolumeClaimSpec(
         access_modes=["ReadWriteMany"],  # RWX for multi-replica support with NFS/EFS
-        resources=client.V1VolumeResourceRequirements(
-            requests={"storage": storage}
-        )
+        resources=client.V1VolumeResourceRequirements(requests={"storage": storage}),
     )
     # Set storage class if specified (e.g., efs-sc for AWS EFS)
     if storage_class_name:
@@ -280,10 +275,10 @@ async def create_odoo(
             labels={
                 "app.kubernetes.io/managed-by": "odoo.simstech.cloud-operator",
                 "odoo.simstech.cloud/cluster": name,
-                "odoo.simstech.cloud/component": "odoo"
-            }
+                "odoo.simstech.cloud/component": "odoo",
+            },
         ),
-        spec=pvc_spec
+        spec=pvc_spec,
     )
 
     try:
@@ -309,12 +304,12 @@ async def create_odoo(
                     labels={
                         "app.kubernetes.io/managed-by": "odoo.simstech.cloud-operator",
                         "odoo.simstech.cloud/cluster": name,
-                        "odoo.simstech.cloud/component": "odoo"
-                    }
+                        "odoo.simstech.cloud/component": "odoo",
+                    },
                 ),
                 string_data={
                     "admin-password": admin_password,
-                }
+                },
             )
             core_api.create_namespaced_secret(namespace=namespace, body=admin_secret)
         else:
@@ -325,9 +320,7 @@ async def create_odoo(
     if addons:
         addons_pvc_spec = client.V1PersistentVolumeClaimSpec(
             access_modes=["ReadWriteMany"],  # RWX for multi-replica support with NFS/EFS
-            resources=client.V1VolumeResourceRequirements(
-                requests={"storage": "5Gi"}
-            )
+            resources=client.V1VolumeResourceRequirements(requests={"storage": "5Gi"}),
         )
         if storage_class_name:
             addons_pvc_spec.storage_class_name = storage_class_name
@@ -340,10 +333,10 @@ async def create_odoo(
                 labels={
                     "app.kubernetes.io/managed-by": "odoo.simstech.cloud-operator",
                     "odoo.simstech.cloud/cluster": name,
-                    "odoo.simstech.cloud/component": "odoo"
-                }
+                    "odoo.simstech.cloud/component": "odoo",
+                },
             ),
-            spec=addons_pvc_spec
+            spec=addons_pvc_spec,
         )
 
         try:
@@ -379,9 +372,7 @@ list_db = False
 {redis_config}
 """
 
-    configmap_data = {
-        "odoo.conf": odoo_conf
-    }
+    configmap_data = {"odoo.conf": odoo_conf}
 
     # Add git clone script if we have addons
     if addons:
@@ -395,32 +386,24 @@ list_db = False
             labels={
                 "app.kubernetes.io/managed-by": "odoo.simstech.cloud-operator",
                 "odoo.simstech.cloud/cluster": name,
-                "odoo.simstech.cloud/component": "odoo"
-            }
+                "odoo.simstech.cloud/component": "odoo",
+            },
         ),
-        data=configmap_data
+        data=configmap_data,
     )
 
     try:
         core_api.create_namespaced_config_map(namespace=namespace, body=configmap)
     except ApiException as e:
         if e.status == 409:
-            core_api.patch_namespaced_config_map(
-                name=f"{resource_name}-config",
-                namespace=namespace,
-                body=configmap
-            )
+            core_api.patch_namespaced_config_map(name=f"{resource_name}-config", namespace=namespace, body=configmap)
         else:
             raise
 
     # Setup Tailscale if enabled
     if tailscale:
         await create_tailscale_resources(
-            namespace=namespace,
-            name=name,
-            component="odoo",
-            target_port=8069,
-            funnel=tailscale.get('funnel', True)
+            namespace=namespace, name=name, component="odoo", target_port=8069, funnel=tailscale.get("funnel", True)
         )
 
         # Create RBAC for Tailscale
@@ -430,11 +413,7 @@ list_db = False
             rbac_api.create_namespaced_role(namespace=namespace, body=role)
         except ApiException as e:
             if e.status == 409:
-                rbac_api.patch_namespaced_role(
-                    name=role['metadata']['name'],
-                    namespace=namespace,
-                    body=role
-                )
+                rbac_api.patch_namespaced_role(name=role["metadata"]["name"], namespace=namespace, body=role)
             else:
                 raise
 
@@ -443,9 +422,7 @@ list_db = False
         except ApiException as e:
             if e.status == 409:
                 rbac_api.patch_namespaced_role_binding(
-                    name=role_binding['metadata']['name'],
-                    namespace=namespace,
-                    body=role_binding
+                    name=role_binding["metadata"]["name"], namespace=namespace, body=role_binding
                 )
             else:
                 raise
@@ -453,34 +430,28 @@ list_db = False
     # Build init containers for cloning addons
     init_containers = []
     if addons:
-        init_containers.append({
-            "name": "clone-addons",
-            "image": "alpine/git:latest",
-            "command": ["/bin/sh", "/scripts/clone-addons.sh"],
-            "volumeMounts": [
-                {
-                    "name": "addons",
-                    "mountPath": "/mnt/addons"
-                },
-                {
-                    "name": "config",
-                    "mountPath": "/scripts"
-                }
-            ]
-        })
+        init_containers.append(
+            {
+                "name": "clone-addons",
+                "image": "alpine/git:latest",
+                "command": ["/bin/sh", "/scripts/clone-addons.sh"],
+                "volumeMounts": [
+                    {"name": "addons", "mountPath": "/mnt/addons"},
+                    {"name": "config", "mountPath": "/scripts"},
+                ],
+            }
+        )
 
         # Add deploy key mounts for private repos
         deploy_keys = set()
         for addon in addons:
-            if addon.get('deployKeySecret'):
-                deploy_keys.add(addon['deployKeySecret'])
+            if addon.get("deployKeySecret"):
+                deploy_keys.add(addon["deployKeySecret"])
 
         for key_secret in deploy_keys:
-            init_containers[0]["volumeMounts"].append({
-                "name": f"deploy-key-{key_secret}",
-                "mountPath": f"/keys/{key_secret}",
-                "readOnly": True
-            })
+            init_containers[0]["volumeMounts"].append(
+                {"name": f"deploy-key-{key_secret}", "mountPath": f"/keys/{key_secret}", "readOnly": True}
+            )
 
     # Add pip-install init container if pip packages are specified
     pip_packages = pip_packages or []
@@ -494,12 +465,7 @@ list_db = False
             "name": "pip-install",
             "image": image or f"odoo:{version}",
             "command": ["/bin/bash", "-c", f"pip install --no-cache-dir --target=/opt/odoo-pip {packages_str}"],
-            "volumeMounts": [
-                {
-                    "name": "pip-packages",
-                    "mountPath": "/opt/odoo-pip"
-                }
-            ]
+            "volumeMounts": [{"name": "pip-packages", "mountPath": "/opt/odoo-pip"}],
         }
         init_containers.append(pip_install_container)
 
@@ -509,29 +475,16 @@ list_db = False
 
     # Build main containers
     odoo_volume_mounts = [
-        {
-            "name": "filestore",
-            "mountPath": "/var/lib/odoo"
-        },
-        {
-            "name": "config",
-            "mountPath": "/etc/odoo/odoo.conf",
-            "subPath": "odoo.conf"
-        }
+        {"name": "filestore", "mountPath": "/var/lib/odoo"},
+        {"name": "config", "mountPath": "/etc/odoo/odoo.conf", "subPath": "odoo.conf"},
     ]
 
     if addons:
-        odoo_volume_mounts.append({
-            "name": "addons",
-            "mountPath": "/mnt/addons"
-        })
+        odoo_volume_mounts.append({"name": "addons", "mountPath": "/mnt/addons"})
 
     # Mount pip packages if specified (same path as init container uses)
     if pip_packages:
-        odoo_volume_mounts.append({
-            "name": "pip-packages",
-            "mountPath": "/opt/odoo-pip"
-        })
+        odoo_volume_mounts.append({"name": "pip-packages", "mountPath": "/opt/odoo-pip"})
 
     # Build environment variables
     # Odoo Docker image expects HOST, USER, PASSWORD env vars
@@ -539,50 +492,28 @@ list_db = False
         # Database connection (Odoo Docker image standard env vars)
         {"name": "HOST", "value": db_host},
         {"name": "USER", "value": "odoo"},
-        {
-            "name": "PASSWORD",
-            "valueFrom": {
-                "secretKeyRef": {
-                    "name": db_secret,
-                    "key": "password"
-                }
-            }
-        },
+        {"name": "PASSWORD", "valueFrom": {"secretKeyRef": {"name": db_secret, "key": "password"}}},
         # Also set PGPASSWORD for any direct psql usage
-        {
-            "name": "PGPASSWORD",
-            "valueFrom": {
-                "secretKeyRef": {
-                    "name": db_secret,
-                    "key": "password"
-                }
-            }
-        },
+        {"name": "PGPASSWORD", "valueFrom": {"secretKeyRef": {"name": db_secret, "key": "password"}}},
         # Admin master password
         {
             "name": "ODOO_ADMIN_PASSWD",
-            "valueFrom": {
-                "secretKeyRef": {
-                    "name": f"{resource_name}-admin",
-                    "key": "admin-password"
-                }
-            }
-        }
+            "valueFrom": {"secretKeyRef": {"name": f"{resource_name}-admin", "key": "admin-password"}},
+        },
     ]
 
     # Add Redis env vars if Valkey is enabled
     if valkey_enabled and valkey_host:
-        odoo_env.extend([
-            {"name": "ODOO_REDIS_HOST", "value": valkey_host},
-            {"name": "ODOO_REDIS_PORT", "value": "6379"},
-        ])
+        odoo_env.extend(
+            [
+                {"name": "ODOO_REDIS_HOST", "value": valkey_host},
+                {"name": "ODOO_REDIS_PORT", "value": "6379"},
+            ]
+        )
 
     # Add PYTHONPATH to include pip packages installed to /opt/odoo-pip
     if pip_packages:
-        odoo_env.append({
-            "name": "PYTHONPATH",
-            "value": "/opt/odoo-pip"
-        })
+        odoo_env.append({"name": "PYTHONPATH", "value": "/opt/odoo-pip"})
 
     containers = [
         {
@@ -594,34 +525,28 @@ list_db = False
             "volumeMounts": odoo_volume_mounts,
             "resources": {
                 "requests": {
-                    "cpu": ensure_str(requests.get('cpu'), '500m'),
-                    "memory": ensure_str(requests.get('memory'), '1Gi')
+                    "cpu": ensure_str(requests.get("cpu"), "500m"),
+                    "memory": ensure_str(requests.get("memory"), "1Gi"),
                 },
                 "limits": {
-                    "cpu": ensure_str(limits.get('cpu'), '2'),
-                    "memory": ensure_str(limits.get('memory'), '4Gi')
-                }
+                    "cpu": ensure_str(limits.get("cpu"), "2"),
+                    "memory": ensure_str(limits.get("memory"), "4Gi"),
+                },
             },
             "livenessProbe": {
-                "httpGet": {
-                    "path": "/web/health",
-                    "port": 8069
-                },
+                "httpGet": {"path": "/web/health", "port": 8069},
                 "initialDelaySeconds": 120,
                 "periodSeconds": 30,
                 "timeoutSeconds": 15,
-                "failureThreshold": 5
+                "failureThreshold": 5,
             },
             "readinessProbe": {
-                "httpGet": {
-                    "path": "/web/health",
-                    "port": 8069
-                },
+                "httpGet": {"path": "/web/health", "port": 8069},
                 "initialDelaySeconds": 60,
                 "periodSeconds": 15,
                 "timeoutSeconds": 10,
-                "failureThreshold": 6
-            }
+                "failureThreshold": 6,
+            },
         }
     ]
 
@@ -631,80 +556,48 @@ list_db = False
             get_tailscale_sidecar(
                 name=name,
                 namespace=namespace,
-                hostname=tailscale.get('hostname', 'odoo'),
+                hostname=tailscale.get("hostname", "odoo"),
                 target_port=8069,
-                funnel=tailscale.get('funnel', True),
-                tags=tailscale.get('tags', 'tag:odoo-web'),
-                auth_secret_name=tailscale_auth_secret
+                funnel=tailscale.get("funnel", True),
+                tags=tailscale.get("tags", "tag:odoo-web"),
+                auth_secret_name=tailscale_auth_secret,
             )
         )
 
     # Build volumes
     volumes = [
-        {
-            "name": "filestore",
-            "persistentVolumeClaim": {
-                "claimName": f"{resource_name}-filestore"
-            }
-        },
-        {
-            "name": "config",
-            "configMap": {
-                "name": f"{resource_name}-config",
-                "defaultMode": 0o755
-            }
-        }
+        {"name": "filestore", "persistentVolumeClaim": {"claimName": f"{resource_name}-filestore"}},
+        {"name": "config", "configMap": {"name": f"{resource_name}-config", "defaultMode": 0o755}},
     ]
 
     if addons:
-        volumes.append({
-            "name": "addons",
-            "persistentVolumeClaim": {
-                "claimName": f"{resource_name}-addons"
-            }
-        })
+        volumes.append({"name": "addons", "persistentVolumeClaim": {"claimName": f"{resource_name}-addons"}})
 
         # Add deploy key volumes
         deploy_keys = set()
         for addon in addons:
-            if addon.get('deployKeySecret'):
-                deploy_keys.add(addon['deployKeySecret'])
+            if addon.get("deployKeySecret"):
+                deploy_keys.add(addon["deployKeySecret"])
 
         for key_secret in deploy_keys:
-            volumes.append({
-                "name": f"deploy-key-{key_secret}",
-                "secret": {
-                    "secretName": key_secret,
-                    "defaultMode": 0o400
-                }
-            })
+            volumes.append(
+                {"name": f"deploy-key-{key_secret}", "secret": {"secretName": key_secret, "defaultMode": 0o400}}
+            )
 
     # Add pip-packages volume if pip packages are specified
     if pip_packages:
-        volumes.append({
-            "name": "pip-packages",
-            "emptyDir": {}
-        })
+        volumes.append({"name": "pip-packages", "emptyDir": {}})
 
     if tailscale:
         volumes.extend(get_tailscale_volumes(f"{name}-odoo"))
 
     # Compute config hash for rollout triggering
     config_hash = compute_config_hash(
-        version=version,
-        image=image,
-        addons=addons,
-        resources=res,
-        db_host=db_host,
-        tailscale=tailscale
+        version=version, image=image, addons=addons, resources=res, db_host=db_host, tailscale=tailscale
     )
 
     # Build pod spec
-    pod_spec = {
-        "serviceAccountName": resource_name,
-        "containers": containers,
-        "volumes": volumes
-    }
+    pod_spec = {"serviceAccountName": resource_name, "containers": containers, "volumes": volumes}
 
     if init_containers:
         pod_spec["initContainers"] = init_containers
@@ -716,8 +609,8 @@ list_db = False
         "labels": {
             "app.kubernetes.io/managed-by": "odoo.simstech.cloud-operator",
             "odoo.simstech.cloud/cluster": name,
-            "odoo.simstech.cloud/component": "odoo"
-        }
+            "odoo.simstech.cloud/component": "odoo",
+        },
     }
     if owner_ref:
         deployment_metadata["ownerReferences"] = [owner_ref]
@@ -728,43 +621,23 @@ list_db = False
         "metadata": deployment_metadata,
         "spec": {
             "replicas": replicas,
-            "selector": {
-                "matchLabels": {
-                    "odoo.simstech.cloud/cluster": name,
-                    "odoo.simstech.cloud/component": "odoo"
-                }
-            },
-            "strategy": {
-                "type": "RollingUpdate",
-                "rollingUpdate": {
-                    "maxUnavailable": 0,
-                    "maxSurge": 1
-                }
-            },
+            "selector": {"matchLabels": {"odoo.simstech.cloud/cluster": name, "odoo.simstech.cloud/component": "odoo"}},
+            "strategy": {"type": "RollingUpdate", "rollingUpdate": {"maxUnavailable": 0, "maxSurge": 1}},
             "template": {
                 "metadata": {
-                    "labels": {
-                        "odoo.simstech.cloud/cluster": name,
-                        "odoo.simstech.cloud/component": "odoo"
-                    },
-                    "annotations": {
-                        "odoo.simstech.cloud/config-hash": config_hash
-                    }
+                    "labels": {"odoo.simstech.cloud/cluster": name, "odoo.simstech.cloud/component": "odoo"},
+                    "annotations": {"odoo.simstech.cloud/config-hash": config_hash},
                 },
-                "spec": pod_spec
-            }
-        }
+                "spec": pod_spec,
+            },
+        },
     }
 
     try:
         apps_api.create_namespaced_deployment(namespace=namespace, body=deployment)
     except ApiException as e:
         if e.status == 409:
-            apps_api.patch_namespaced_deployment(
-                name=resource_name,
-                namespace=namespace,
-                body=deployment
-            )
+            apps_api.patch_namespaced_deployment(name=resource_name, namespace=namespace, body=deployment)
         else:
             raise kopf.PermanentError(f"Failed to create Odoo deployment: {e}")
 
@@ -777,34 +650,21 @@ list_db = False
             labels={
                 "app.kubernetes.io/managed-by": "odoo.simstech.cloud-operator",
                 "odoo.simstech.cloud/cluster": name,
-                "odoo.simstech.cloud/component": "odoo"
-            }
+                "odoo.simstech.cloud/component": "odoo",
+            },
         ),
         spec=client.V1ServiceSpec(
             type="ClusterIP",
-            selector={
-                "odoo.simstech.cloud/cluster": name,
-                "odoo.simstech.cloud/component": "odoo"
-            },
-            ports=[
-                client.V1ServicePort(
-                    name="http",
-                    port=8069,
-                    target_port=8069
-                )
-            ]
-        )
+            selector={"odoo.simstech.cloud/cluster": name, "odoo.simstech.cloud/component": "odoo"},
+            ports=[client.V1ServicePort(name="http", port=8069, target_port=8069)],
+        ),
     )
 
     try:
         core_api.create_namespaced_service(namespace=namespace, body=service)
     except ApiException as e:
         if e.status == 409:
-            core_api.patch_namespaced_service(
-                name=resource_name,
-                namespace=namespace,
-                body=service
-            )
+            core_api.patch_namespaced_service(name=resource_name, namespace=namespace, body=service)
         else:
             raise
 
@@ -840,19 +700,13 @@ async def delete_odoo(namespace: str, name: str) -> None:
 
     # Delete PVCs
     try:
-        core_api.delete_namespaced_persistent_volume_claim(
-            name=f"{resource_name}-filestore",
-            namespace=namespace
-        )
+        core_api.delete_namespaced_persistent_volume_claim(name=f"{resource_name}-filestore", namespace=namespace)
     except ApiException as e:
         if e.status != 404:
             raise
 
     try:
-        core_api.delete_namespaced_persistent_volume_claim(
-            name=f"{resource_name}-addons",
-            namespace=namespace
-        )
+        core_api.delete_namespaced_persistent_volume_claim(name=f"{resource_name}-addons", namespace=namespace)
     except ApiException as e:
         if e.status != 404:
             raise
