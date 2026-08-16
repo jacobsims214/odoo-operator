@@ -172,23 +172,18 @@ secrets:
   #   ~/.cloudflared/4d33f088-65c2-405e-a699-2224dceb5863.json
 
 # =============================================================================
-# Extra Objects - Cilium LoadBalancer services with static IPs
+# Extra Objects - ClusterIP services for Traefik routing
 # =============================================================================
 extraObjects:
-  # Odoo LoadBalancer - static IP for reverse proxy access
+  # Odoo internal service - Traefik routes www.simstech.cloud -> this service
   - apiVersion: v1
     kind: Service
     metadata:
-      name: simstech-odoo-lb
+      name: simstech-odoo-svc
       namespace: "{{ .Release.Namespace }}"
-      annotations:
-        # Pin to a specific IP from the Cilium LB-IPAM pool (192.168.8.50-99)
-        io.cilium/lb-ipam-ips: "192.168.8.52"
     spec:
-      type: LoadBalancer
-      loadBalancerIP: "192.168.8.52"
+      type: ClusterIP
       selector:
-        # Matches the label the operator sets on Odoo pods
         odoo.simstech.cloud/cluster: simstech
         odoo.simstech.cloud/component: odoo
       ports:
@@ -199,19 +194,15 @@ extraObjects:
           port: 8072
           targetPort: 8072
 
-  # Metabase LoadBalancer - static IP for reverse proxy access
+  # Metabase internal service - Traefik routes data.simstech.cloud -> this service
   - apiVersion: v1
     kind: Service
     metadata:
-      name: simstech-metabase-lb
+      name: simstech-metabase-svc
       namespace: "{{ .Release.Namespace }}"
-      annotations:
-        io.cilium/lb-ipam-ips: "192.168.8.53"
     spec:
-      type: LoadBalancer
-      loadBalancerIP: "192.168.8.53"
+      type: ClusterIP
       selector:
-        # Matches the label the operator sets on Metabase pods
         odoo.simstech.cloud/cluster: simstech
         odoo.simstech.cloud/component: metabase
       ports:
