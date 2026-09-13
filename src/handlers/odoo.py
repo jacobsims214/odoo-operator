@@ -205,6 +205,7 @@ async def create_odoo(
     version: str,
     image: Optional[str] = None,
     replicas: int = 1,
+    disruption: Optional[dict] = None,
     storage: str = "10Gi",
     storage_class_name: Optional[str] = None,
     resources: dict = None,
@@ -221,6 +222,7 @@ async def create_odoo(
     """Create Odoo deployment with all related resources."""
     core_api = client.CoreV1Api()
     apps_api = client.AppsV1Api()
+    policy_api = client.PolicyV1Api()
     rbac_api = client.RbacAuthorizationV1Api()
 
     odoo_image = image or f"odoo:{version}"
@@ -633,6 +635,72 @@ list_db = False
         },
     }
 
+    # Karpenter / EKS Auto Mode consolidation protection.
+    #
+    # Odoo's pod is not servable until its init containers have cloned the addon
+    # repos, pulled the Odoo image and run pip install — on a cold node that is
+    # well over a minute. EKS Auto Mode's built-in NodePools consolidate with
+    # `consolidateAfter: 30s`, so an underutilised node can be reclaimed while
+    # the pod is still initialising. The replacement lands on another node and
+    # starts the same init from scratch, and a busy cluster can keep that loop
+    # going indefinitely: the Deployment reports MinimumReplicasUnavailable and
+    # Odoo never serves.
+    #
+    # A PodDisruptionBudget is the fix because it is evaluated against *healthy*
+    # pods. While the pod is initialising currentHealthy is 0, so
+    # disruptionsAllowed is 0 and the eviction is refused rather than restarting
+    # the race. AWS also recommends a PDB over `do-not-disrupt` because it
+    # throttles disruption instead of pinning the node outright.
+    disruption = disruption or {}
+    pdb_spec = disruption.get("podDisruptionBudget", {})
+    if pdb_spec.get("enabled", True):
+        pdb_metadata = {
+            "name": resource_name,
+            "namespace": namespace,
+            "labels": deployment_metadata["labels"],
+        }
+        if owner_ref:
+            pdb_metadata["ownerReferences"] = [owner_ref]
+
+        # minAvailable wins when both are given; the CRD documents that at one
+        # replica this necessarily blocks voluntary disruption of that node,
+        # which is the intended trade for a single-replica ERP.
+        if pdb_spec.get("maxUnavailable") is not None and pdb_spec.get("minAvailable") is None:
+            pdb_rule = {"maxUnavailable": pdb_spec["maxUnavailable"]}
+        else:
+            pdb_rule = {"minAvailable": pdb_spec.get("minAvailable", 1)}
+
+        pdb = {
+            "apiVersion": "policy/v1",
+            "kind": "PodDisruptionBudget",
+            "metadata": pdb_metadata,
+            "spec": {
+                **pdb_rule,
+                "selector": {
+                    "matchLabels": {
+                        "odoo.simstech.cloud/cluster": name,
+                        "odoo.simstech.cloud/component": "odoo",
+                    }
+                },
+            },
+        }
+
+        try:
+            policy_api.create_namespaced_pod_disruption_budget(namespace=namespace, body=pdb)
+        except ApiException as e:
+            if e.status == 409:
+                policy_api.patch_namespaced_pod_disruption_budget(
+                    name=resource_name, namespace=namespace, body=pdb
+                )
+            else:
+                raise kopf.PermanentError(f"Failed to create Odoo PodDisruptionBudget: {e}")
+
+    # Opt-in belt-and-braces: exempt the node from consolidation entirely while
+    # this pod runs. A PDB is usually enough and is cheaper, since do-not-disrupt
+    # keeps the node at its current size regardless of utilisation.
+    if disruption.get("doNotDisrupt", False):
+        deployment["spec"]["template"]["metadata"]["annotations"]["karpenter.sh/do-not-disrupt"] = "true"
+
     try:
         apps_api.create_namespaced_deployment(namespace=namespace, body=deployment)
     except ApiException as e:
@@ -674,8 +742,18 @@ async def delete_odoo(namespace: str, name: str) -> None:
     core_api = client.CoreV1Api()
     apps_api = client.AppsV1Api()
     rbac_api = client.RbacAuthorizationV1Api()
+    policy_api = client.PolicyV1Api()
 
     resource_name = f"{name}-odoo"
+
+    # Delete PodDisruptionBudget. ownerReferences would collect it anyway; this
+    # keeps deletion explicit and ordered like every other resource here, and
+    # covers clusters where the owner reference was not set.
+    try:
+        policy_api.delete_namespaced_pod_disruption_budget(name=resource_name, namespace=namespace)
+    except ApiException as e:
+        if e.status != 404:
+            raise
 
     # Delete deployment
     try:

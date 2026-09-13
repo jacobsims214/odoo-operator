@@ -37,6 +37,11 @@ rules:
   - apiGroups: ["apps"]
     resources: ["deployments", "statefulsets"]
     verbs: ["list", "watch", "get", "create", "update", "patch", "delete"]
+  # PodDisruptionBudgets guard the Odoo Deployment against being evicted
+  # mid-initialisation by Karpenter / EKS Auto Mode consolidation.
+  - apiGroups: ["policy"]
+    resources: ["poddisruptionbudgets"]
+    verbs: ["list", "watch", "get", "create", "update", "patch", "delete"]
   
   # Manage Jobs (for DB init)
   - apiGroups: ["batch"]
