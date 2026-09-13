@@ -47,6 +47,49 @@ spec:
                       type: integer
                       default: 1
                       minimum: 1
+                    disruption:
+                      type: object
+                      description: >-
+                        Protection from voluntary node disruption (Karpenter / EKS Auto Mode
+                        consolidation, node drains). Odoo is not servable until its init
+                        containers finish cloning addons and installing pip packages, which
+                        on a cold node exceeds the 30s consolidateAfter that EKS Auto Mode's
+                        built-in NodePools use. Without a budget the pod can be evicted
+                        mid-init, restart the init elsewhere, and loop indefinitely.
+                      properties:
+                        podDisruptionBudget:
+                          type: object
+                          properties:
+                            enabled:
+                              type: boolean
+                              default: true
+                              description: >-
+                                Create a PodDisruptionBudget for the Odoo Deployment. On by
+                                default: the failure it prevents is a hard outage, and a PDB
+                                is evaluated against healthy pods so it also protects the
+                                initialising window.
+                            minAvailable:
+                              x-kubernetes-int-or-string: true
+                              description: >-
+                                Minimum pods that must stay available. Defaults to 1. Note
+                                that at replicas=1 this necessarily blocks voluntary
+                                disruption of the node Odoo runs on — that is the intended
+                                trade for a single-replica ERP. Run 2+ replicas if you want
+                                consolidation to keep working. Takes precedence over
+                                maxUnavailable when both are set.
+                            maxUnavailable:
+                              x-kubernetes-int-or-string: true
+                              description: >-
+                                Alternative to minAvailable, for multi-replica deployments
+                                that want draining to proceed one pod at a time.
+                        doNotDisrupt:
+                          type: boolean
+                          default: false
+                          description: >-
+                            Also set karpenter.sh/do-not-disrupt on the pod, exempting its
+                            node from consolidation entirely. Off by default: a PDB is
+                            normally sufficient and cheaper, since this pins the node at its
+                            current size regardless of utilisation.
                     storage:
                       type: string
                       default: "10Gi"

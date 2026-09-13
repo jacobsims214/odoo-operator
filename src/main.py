@@ -187,6 +187,7 @@ async def on_create(spec, name, namespace, logger, patch, meta, **kwargs):
             version=version,
             image=odoo_spec.get("image"),
             replicas=odoo_spec.get("replicas", 1),
+            disruption=odoo_spec.get("disruption", {}),
             storage=odoo_spec.get("storage", "10Gi"),
             storage_class_name=odoo_spec.get("storageClassName"),
             resources=odoo_spec.get("resources", {}),
